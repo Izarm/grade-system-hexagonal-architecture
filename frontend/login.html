@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión Académica - Colegio San José de Tarbes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #0a2b4e;
+            padding: 30px 20px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* Pestañas */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #f9fafb;
+            transition: all 0.2s;
+            color: #6b7280;
+        }
+
+        .tab.active {
+            background: white;
+            color: #0a2b4e;
+            border-bottom: 3px solid #0a2b4e;
+        }
+
+        .body {
+            padding: 32px 28px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .input-icon {
+            position: relative;
+        }
+
+        .input-icon i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 18px;
+        }
+
+        .input-icon input, .input-icon select {
+            width: 100%;
+            padding: 14px 14px 14px 44px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.2s;
+            outline: none;
+            font-family: inherit;
+            background: white;
+        }
+
+        .input-icon input:focus, .input-icon select:focus {
+            border-color: #0a2b4e;
+            box-shadow: 0 0 0 3px rgba(10, 43, 78, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            background: #0a2b4e;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            background: #123e6b;
+        }
+
+        .result-message {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: center;
+            background: #f9fafb;
+            border-left: 4px solid;
+        }
+
+        .result-message.success {
+            border-left-color: #10b981;
+            color: #065f46;
+            background: #ecfdf5;
+        }
+
+        .result-message.error {
+            border-left-color: #ef4444;
+            color: #991b1b;
+            background: #fef2f2;
+        }
+
+        .btn.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .forgot-password a {
+            color: #6b7280;
+            font-size: 14px;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .forgot-password a:hover {
+            color: #0a2b4e;
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 500px) {
+            .body {
+                padding: 24px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>San José de Tarbes</h1>
+            <p>Sistema de Gestión Académica</p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="login">Iniciar sesión</div>
+            <div class="tab" data-tab="register">Registrarse</div>
+        </div>
+
+        <div class="body">
+            <!-- Formulario de inicio de sesión -->
+            <div id="loginPanel">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Correo Institucional</label>
+                        <div class="input-icon">
+                            <i>✉️</i>
+                            <input type="email" id="email" placeholder="correo@sanjosedetarbes.edu.co" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <div class="input-icon">
+                            <i>🔒</i>
+                            <input type="password" id="password" placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Iniciar Sesión</button>
+                    <div class="forgot-password">
+                        <a href="#">¿Olvidaste tu contraseña?</a>
+                    </div>
+                </form>
+                <div id="loginResult" class="result-message"></div>
+            </div>
+
+            <!-- Formulario de registro -->
+            <div id="registerPanel" class="hidden">
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label>Nombre completo</label>
+                        <div class="input-icon">
+                            <i>👤</i>
+                            <input type="text" id="regName" placeholder="Nombre completo" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Documento</label>
+                        <div class="input-icon">
+                            <i>🆔</i>
+                            <input type="text" id="regDocument" placeholder="Documento de identidad" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Correo electrónico</label>
+                        <div class="input-icon">
+                            <i>✉️</i>
+                            <input type="email" id="regEmail" placeholder="correo@ejemplo.com" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono (opcional)</label>
+                        <div class="input-icon">
+                            <i>📞</i>
+                            <input type="tel" id="regPhone" placeholder="Teléfono de contacto">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <div class="input-icon">
+                            <i>🔒</i>
+                            <input type="password" id="regPassword" placeholder="Contraseña" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Rol</label>
+                        <div class="input-icon">
+                            <i>⚙️</i>
+                            <select id="regRole" required>
+                                <option value="docente">Docente</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn" id="registerBtn">Registrar Usuario</button>
+                </form>
+                <div id="registerResult" class="result-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api';
+
+        // Elementos
+        const loginPanel = document.getElementById('loginPanel');
+        const registerPanel = document.getElementById('registerPanel');
+        const tabs = document.querySelectorAll('.tab');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const loginResult = document.getElementById('loginResult');
+        const registerResult = document.getElementById('registerResult');
+        const loginBtn = document.getElementById('loginBtn');
+        const registerBtn = document.getElementById('registerBtn');
+
+        // Cambiar pestañas
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                // Activar pestaña visual
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                // Mostrar panel correspondiente
+                if (target === 'login') {
+                    loginPanel.classList.remove('hidden');
+                    registerPanel.classList.add('hidden');
+                } else {
+                    loginPanel.classList.add('hidden');
+                    registerPanel.classList.remove('hidden');
+                }
+                // Limpiar mensajes
+                clearMessage(loginResult);
+                clearMessage(registerResult);
+            });
+        });
+
+        function showMessage(element, message, type) {
+            element.innerHTML = `<p>${message}</p>`;
+            element.className = `result-message ${type}`;
+        }
+
+        function clearMessage(element) {
+            element.innerHTML = '';
+            element.className = 'result-message';
+        }
+
+        // Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage(loginResult);
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (!email || !password) {
+                showMessage(loginResult, '❌ Por favor completa todos los campos', 'error');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.classList.add('loading');
+            loginBtn.textContent = 'Iniciando sesión...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage(loginResult, `✅ Bienvenido ${data.user.name} (${data.user.role})`, 'success');
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    // Redirigir según rol después de 1 segundo
+                    setTimeout(() => {
+                        if (data.user.role === 'admin') {
+                            window.location.href = '/admin/dashboard';
+                        } else {
+                            window.location.href = '/docente/dashboard';
+                        }
+                    }, 1000);
+                } else {
+                    showMessage(loginResult, `❌ Error: ${data.message || 'Credenciales inválidas'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(loginResult, `❌ Error de conexión con el servidor.`, 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.classList.remove('loading');
+                loginBtn.textContent = 'Iniciar Sesión';
+            }
+        });
+
+        // Registro
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage(registerResult);
+
+            const name = document.getElementById('regName').value.trim();
+            const documentVal = document.getElementById('regDocument').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+            const password = document.getElementById('regPassword').value.trim();
+            const role = document.getElementById('regRole').value;
+
+            if (!name || !documentVal || !email || !password) {
+                showMessage(registerResult, '❌ Por favor completa los campos obligatorios (nombre, documento, correo y contraseña)', 'error');
+                return;
+            }
+
+            registerBtn.disabled = true;
+            registerBtn.classList.add('loading');
+            registerBtn.textContent = 'Registrando...';
+
+            try {
+                // El token puede ser null si el usuario no ha iniciado sesión
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ name, document: documentVal, email, phone, password, role })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage(registerResult, `✅ Usuario ${name} registrado exitosamente.`, 'success');
+                    registerForm.reset();
+                    // Opcional: cambiar a pestaña login después de registro exitoso
+                    setTimeout(() => {
+                        document.querySelector('.tab[data-tab="login"]').click();
+                    }, 1500);
+                } else {
+                    showMessage(registerResult, `❌ Error: ${data.message || 'No se pudo registrar el usuario'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(registerResult, `❌ Error de conexión: ${error.message}`, 'error');
+            } finally {
+                registerBtn.disabled = false;
+                registerBtn.classList.remove('loading');
+                registerBtn.textContent = 'Registrar Usuario';
+            }
+        });
+    </script>
+</body>
+</html>
