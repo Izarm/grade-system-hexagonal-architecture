@@ -62,6 +62,20 @@ class SubjectAssignmentRepository {
         );
         return rows[0] || null;
     }
+    async findByTeacherAndYear(teacherId, academicYearId) {
+        const [rows] = await pool.query(
+            `SELECT sa.id, sa.group_id, sa.subject_id, sa.academic_year_id,
+                g.name AS groupName, gr.name AS gradeName, s.name AS subjectName
+         FROM subject_assignments sa
+         JOIN \`groups\` g ON sa.group_id = g.id
+         JOIN grades gr ON g.grade_id = gr.id
+         JOIN subjects s ON sa.subject_id = s.id
+         WHERE sa.teacher_id = ? AND sa.academic_year_id = ? AND sa.deleted_at IS NULL
+         ORDER BY gr.name, g.name, s.name`,
+            [teacherId, academicYearId]
+        );
+        return rows;
+    }
 }
 
 module.exports = SubjectAssignmentRepository;

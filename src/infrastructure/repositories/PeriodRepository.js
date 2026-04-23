@@ -58,6 +58,14 @@ class PeriodRepository {
         );
         return rows;
     }
+    async checkOpen(periodId) {
+        const [rows] = await pool.query(
+            `SELECT status FROM periods WHERE id = ? AND deleted_at IS NULL`,
+            [periodId]
+        );
+        if (rows.length === 0) throw new Error('Período no encontrado');
+        return rows[0].status === 'open';
+    }
 }
 
 module.exports = PeriodRepository;

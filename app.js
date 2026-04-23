@@ -24,6 +24,7 @@ app.use('/api/groups', require('./src/interfaces/routes/group.routes'));
 app.use('/api/subjects', require('./src/interfaces/routes/subject.routes'));
 app.use('/api/subject-assignments', require('./src/interfaces/routes/subjectAssignment.routes'));
 app.use('/api/users', require('./src/interfaces/routes/user.routes'));
+app.use('/api/grade-records', require('./src/interfaces/routes/gradeRecord.routes'));
 
 // Rutas del frontend (para redirigir después del login)
 app.get('/', (req, res) => {
@@ -35,6 +36,9 @@ app.get('/admin/dashboard', (req, res) => {
 app.get('/docente/dashboard', (req, res) => {
     // Si aún no tienes docente-dashboard.html, puedes redirigir a admin o crear uno
     res.sendFile(path.join(__dirname, 'frontend', 'admin-dashboard.html'));
+});
+app.get('/teacher/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend', 'teacher-dashboard.html'));
 });
 
 const PORT = process.env.PORT || 3000;
