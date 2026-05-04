@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // src/infrastructure/repositories/MySQLUserRepository.js
 const pool = require('../database/mysql');
 
@@ -110,20 +109,17 @@ class MySQLUserRepository {
         );
         return result.affectedRows > 0;
     }
-}
 
-=======
-const pool = require('../database/mysql');
-
-class MySQLUserRepository {
-    async findByEmail(email) {
+    /**
+     * Lista todos los usuarios activos (sin filtrar por rol)
+     * @returns {Promise<Array>} - Lista de usuarios (sin contraseña)
+     */
+    async findAll() {
         const [rows] = await pool.query(
-            "SELECT id, name, email, password, role FROM users WHERE email = ? AND deleted_at IS NULL",
-            [email]
+            `SELECT id, name, document, email, phone, role FROM users WHERE deleted_at IS NULL`
         );
-         console.log('Usuario encontrado:', rows[0]); // <-- Agrega esto
-        return rows[0];
+        return rows;x
     }
 }
->>>>>>> fe1278852119238c6138d527318cdc5874e656a9
+
 module.exports = MySQLUserRepository;

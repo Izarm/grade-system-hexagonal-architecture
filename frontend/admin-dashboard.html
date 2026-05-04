@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - Colegio San José de Tarbes</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f3f4f6;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #0a2b4e;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 24px; }
+        .logout-btn {
+            background: #ef4444;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+        }
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            background: #e5e7eb;
+            gap: 4px;
+            padding: 0 20px;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border: none;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #0a2b4e;
+        }
+        .panel {
+            padding: 30px;
+            display: none;
+        }
+        .panel.active {
+            display: block;
+        }
+        .form-card, .list-card {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+        }
+        button {
+            background: #0a2b4e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        button.delete-btn {
+            background: none;
+            color: #ef4444;
+            padding: 4px 8px;
+        }
+        button.close-btn {
+            background: #f59e0b;
+            color: white;
+            padding: 4px 8px;
+            margin-left: 5px;
+        }
+        button.reopen-btn {
+            background: #10b981;
+            color: white;
+            padding: 4px 8px;
+            margin-left: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .actions button {
+            background: none;
+            color: #0a2b4e;
+            padding: 4px 8px;
+            margin-right: 5px;
+        }
+        .message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .success { background: #d1fae5; color: #065f46; }
+        .error { background: #fee2e2; color: #991b1b; }
+        
+        /* Estilos para tablas de consultas */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #0a2b4e;
+            color: white;
+        }
+        .pass { color: #10b981; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .fail { color: #ef4444; font-weight: bold; }
+        
+        @media (max-width: 768px) {
+            .tabs { flex-direction: column; }
+            .panel { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Panel de Administración</h1>
+        <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+    </div>
+    <div class="tabs">
+        <button class="tab active" data-tab="academicYears">Años lectivos</button>
+        <button class="tab" data-tab="periods">Períodos</button>
+        <button class="tab" data-tab="grades">Grados</button>
+        <button class="tab" data-tab="groups">Grupos</button>
+        <button class="tab" data-tab="subjects">Asignaturas</button>
+        <button class="tab" data-tab="assignments">Asignaciones</button>
+        <button class="tab" data-tab="queries">Consultas</button>
+    </div>
+
+    <!-- Panel Años Lectivos -->
+    <div id="academicYears" class="panel active">
+        <div class="form-card">
+            <h3>Crear / Editar Año Lectivo</h3>
+            <form id="academicYearForm">
+                <input type="hidden" id="ayId">
+                <div class="form-group"><label>Nombre (ej. 2025)</label><input type="text" id="ayName" required></div>
+                <div class="form-group"><label>Fecha inicio</label><input type="date" id="ayStart" required></div>
+                <div class="form-group"><label>Fecha fin</label><input type="date" id="ayEnd" required></div>
+                <div class="form-group"><label><input type="checkbox" id="ayActive"> Activo (solo uno puede estar activo)</label></div>
+                <button type="submit">Guardar</button>
+                <button type="button" id="cancelAy">Cancelar edición</button>
+            </form>
+            <div id="ayMessage" class="message"></div>
+        </div>
+        <div class="list-card">
+            <h3>Listado de Años Lectivos</h3>
+            <table id="ayTable">
+                <thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Activo</th><th>Acciones</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Panel Períodos -->
+    <div id="periods" class="panel">
+        <div class="form-card"><h3>Crear / Editar Período</h3>
+            <form id="periodForm">
+                <input type="hidden" id="pId">
+                <div class="form-group"><label>Año lectivo</label><select id="pAcademicYearId" required></select></div>
+                <div class="form-group"><label>Nombre</label><input type="text" id="pName" required></div>
+                <div class="form-group"><label>Orden</label><input type="number" id="pOrder" required></div>
+                <div class="form-group"><label>Fecha inicio</label><input type="date" id="pStart" required></div>
+                <div class="form-group"><label>Fecha fin</label><input type="date" id="pEnd" required></div>
+                <div class="form-group"><label>Estado</label><select id="pStatus"><option value="open">Abierto</option><option value="closed">Cerrado</option></select></div>
+                <button type="submit">Guardar</button><button type="button" id="cancelPeriod">Cancelar</button>
+            </form>
+            <div id="periodMessage" class="message"></div>
+        </div>
+        <div class="list-card"><h3>Períodos</h3><table id="periodTable"><thead><tr><th>ID</th><th>Año</th><th>Nombre</th><th>Orden</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- Panel Grados -->
+    <div id="grades" class="panel">
+        <div class="form-card"><h3>Crear / Editar Grado</h3>
+            <form id="gradeForm">
+                <input type="hidden" id="gId">
+                <div class="form-group"><label>Nombre (ej. 1°, 2°, ...)</label><input type="text" id="gName" required></div>
+                <button type="submit">Guardar</button><button type="button" id="cancelGrade">Cancelar</button>
+            </form>
+            <div id="gradeMessage" class="message"></div>
+        </div>
+        <div class="list-card"><h3>Grados</h3><table id="gradeTable"><thead><tr><th>ID</th><th>Nombre</th><th>Acciones</th></tr></thead><tbody></tbody></tr></div>
+    </div>
+
+    <!-- Panel Grupos -->
+    <div id="groups" class="panel">
+        <div class="form-card"><h3>Crear / Editar Grupo</h3>
+            <form id="groupForm">
+                <input type="hidden" id="grId">
+                <div class="form-group"><label>Grado</label><select id="grGradeId" required></select></div>
+                <div class="form-group"><label>Nombre del grupo (ej. A, B, C)</label><input type="text" id="grName" required></div>
+                <button type="submit">Guardar</button><button type="button" id="cancelGroup">Cancelar</button>
+            </form>
+            <div id="groupMessage" class="message"></div>
+        </div>
+        <div class="list-card"><h3>Grupos</h3><table id="groupTable"><thead><tr><th>ID</th><th>Grado</th><th>Nombre</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- Panel Asignaturas -->
+    <div id="subjects" class="panel">
+        <div class="form-card">
+            <h3>Crear / Editar Asignatura</h3>
+            <form id="subjectForm">
+                <input type="hidden" id="subjId">
+                <div class="form-group"><label>Nombre</label><input type="text" id="subjName" required></div>
+                <div class="form-group"><label>Área</label><input type="text" id="subjArea" required></div>
+                <div class="form-group"><label>Intensidad horaria semanal</label><input type="number" id="subjHours" min="1" max="10" required></div>
+                <button type="submit">Guardar</button>
+                <button type="button" id="cancelSubject">Cancelar</button>
+            </form>
+            <div id="subjectMessage" class="message"></div>
+        </div>
+        <div class="list-card">
+            <h3>Listado de Asignaturas</h3>
+            <table id="subjectTable">
+                <thead><tr><th>ID</th><th>Nombre</th><th>Área</th><th>Horas</th><th>Acciones</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Panel Asignaciones (materias a grupos) -->
+    <div id="assignments" class="panel">
+        <div class="form-card">
+            <h3>Asignar materia a grupo</h3>
+            <form id="assignmentForm">
+                <input type="hidden" id="assId">
+                <div class="form-group"><label>Año lectivo</label><select id="assAcademicYearId" required></select></div>
+                <div class="form-group"><label>Grupo</label><select id="assGroupId" required></select></div>
+                <div class="form-group"><label>Asignatura</label><select id="assSubjectId" required></select></div>
+                <div class="form-group"><label>Docente</label><select id="assTeacherId" required></select></div>
+                <button type="submit">Guardar</button>
+                <button type="button" id="cancelAssignment">Cancelar</button>
+            </form>
+            <div id="assignmentMessage" class="message"></div>
+        </div>
+        <div class="list-card">
+            <h3>Asignaciones actuales</h3>
+            <table id="assignmentTable">
+                <thead><tr><th>ID</th><th>Año</th><th>Grupo</th><th>Asignatura</th><th>Docente</th><th>Acciones</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Panel Consultas -->
+    <div id="queries" class="panel">
+        <div class="form-card">
+            <h3>📊 Estructura Académica Completa</h3>
+            <button id="loadStructureBtn" class="btn">Cargar estructura completa</button>
+            <div id="structureContainer" style="margin-top: 20px; overflow-x: auto;"></div>
+        </div>
+        
+        <div class="form-card">
+            <h3>📝 Consultar Notas por Asignación</h3>
+            <div class="form-group">
+                <label>Año lectivo</label>
+                <select id="queryAcademicYearId">
+                    <option value="">Seleccione año</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Período</label>
+                <select id="queryPeriodId">
+                    <option value="">Seleccione período</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Asignación (Grupo - Materia)</label>
+                <select id="queryAssignmentId">
+                    <option value="">Seleccione asignación</option>
+                </select>
+            </div>
+            <button id="viewGradesQueryBtn" class="btn">Ver notas</button>
+            <div id="queryGradesContainer" style="margin-top: 20px; overflow-x: auto;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:3000/api';
+    let token = localStorage.getItem('token');
+
+    if (!token) {
+        alert('No hay sesión activa. Redirigiendo al login.');
+        window.location.href = '/login.html';
+    }
+
+    // Helper para peticiones fetch autenticadas
+    async function fetchAPI(url, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+        const response = await fetch(`${API_BASE}${url}`, { ...options, headers });
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+            throw new Error('Sesión expirada');
+        }
+        return response;
+    }
+
+    // ---------- Años lectivos ----------
+    async function loadAcademicYears() {
+        const res = await fetchAPI('/academic-years');
+        const data = await res.json();
+        const tbody = document.querySelector('#ayTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(ay => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = ay.id;
+            row.insertCell(1).innerText = ay.name;
+            row.insertCell(2).innerText = ay.startDate;
+            row.insertCell(3).innerText = ay.endDate;
+            row.insertCell(4).innerText = ay.active ? 'Sí' : 'No';
+            const actions = row.insertCell(5);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => fillAyForm(ay);
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deleteAcademicYear(ay.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+        });
+    }
+
+    function fillAyForm(ay) {
+        document.getElementById('ayId').value = ay.id;
+        document.getElementById('ayName').value = ay.name;
+        document.getElementById('ayStart').value = ay.startDate;
+        document.getElementById('ayEnd').value = ay.endDate;
+        document.getElementById('ayActive').checked = ay.active;
+    }
+
+    async function saveAcademicYear(event) {
+        event.preventDefault();
+        const id = document.getElementById('ayId').value;
+        const data = {
+            name: document.getElementById('ayName').value,
+            startDate: document.getElementById('ayStart').value,
+            endDate: document.getElementById('ayEnd').value,
+            active: document.getElementById('ayActive').checked
+        };
+        const url = id ? `/academic-years/${id}` : '/academic-years';
+        const method = id ? 'PUT' : 'POST';
+        try {
+            const res = await fetchAPI(url, { method, body: JSON.stringify(data) });
+            if (!res.ok) throw new Error((await res.json()).message);
+            showMessage('ayMessage', 'Guardado correctamente', 'success');
+            document.getElementById('academicYearForm').reset();
+            document.getElementById('ayId').value = '';
+            loadAcademicYears();
+            loadAcademicYearsSelect();
+            loadQueryAcademicYears();
+        } catch (err) {
+            showMessage('ayMessage', err.message, 'error');
+        }
+    }
+
+    async function deleteAcademicYear(id) {
+        if (!confirm('¿Eliminar este año lectivo? (eliminación lógica)')) return;
+        const res = await fetchAPI(`/academic-years/${id}`, { method: 'DELETE' });
+        if (res.ok) loadAcademicYears();
+        else alert('Error al eliminar');
+    }
+
+    // ---------- Períodos ----------
+    async function loadPeriods() {
+        const res = await fetchAPI('/periods');
+        const periods = await res.json();
+        const tbody = document.querySelector('#periodTable tbody');
+        tbody.innerHTML = '';
+        for (const p of periods) {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = p.id;
+            row.insertCell(1).innerText = p.academicYearId;
+            row.insertCell(2).innerText = p.name;
+            row.insertCell(3).innerText = p.order;
+            row.insertCell(4).innerText = p.startDate;
+            row.insertCell(5).innerText = p.endDate;
+            row.insertCell(6).innerText = p.status;
+            const actions = row.insertCell(7);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => fillPeriodForm(p);
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deletePeriod(p.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+            
+            // Botón de cerrar período (solo si está abierto)
+            if (p.status === 'open') {
+                const closeBtn = document.createElement('button');
+                closeBtn.innerText = 'Cerrar';
+                closeBtn.className = 'close-btn';
+                closeBtn.onclick = () => closePeriod(p.id);
+                actions.appendChild(closeBtn);
+            } else if (p.status === 'closed') {
+                const reopenBtn = document.createElement('button');
+                reopenBtn.innerText = 'Reabrir';
+                reopenBtn.className = 'reopen-btn';
+                reopenBtn.onclick = () => reopenPeriod(p.id);
+                actions.appendChild(reopenBtn);
+            }
+        }
+    }
+    
+    async function closePeriod(periodId) {
+        if (!confirm('¿Está seguro de cerrar este período? Las notas no podrán modificarse después.')) return;
+        try {
+            const res = await fetchAPI(`/periods/${periodId}/close`, { method: 'POST' });
+            if (res.ok) {
+                showMessage('periodMessage', 'Período cerrado exitosamente', 'success');
+                loadPeriods();
+            } else {
+                const err = await res.json();
+                showMessage('periodMessage', err.message, 'error');
+            }
+        } catch (error) {
+            showMessage('periodMessage', error.message, 'error');
+        }
+    }
+
+    async function reopenPeriod(periodId) {
+        if (!confirm('¿Está seguro de reabrir este período? Las notas podrán modificarse nuevamente.')) return;
+        try {
+            const res = await fetchAPI(`/periods/${periodId}/reopen`, { method: 'POST' });
+            if (res.ok) {
+                showMessage('periodMessage', 'Período reabierto exitosamente', 'success');
+                loadPeriods();
+            } else {
+                const err = await res.json();
+                showMessage('periodMessage', err.message, 'error');
+            }
+        } catch (error) {
+            showMessage('periodMessage', error.message, 'error');
+        }
+    }
+
+    async function loadAcademicYearsSelect() {
+        const res = await fetchAPI('/academic-years');
+        const years = await res.json();
+        const select = document.getElementById('pAcademicYearId');
+        select.innerHTML = '<option value="">Seleccione</option>';
+        years.forEach(y => {
+            const opt = document.createElement('option');
+            opt.value = y.id;
+            opt.innerText = y.name;
+            select.appendChild(opt);
+        });
+    }
+
+    function fillPeriodForm(p) {
+        document.getElementById('pId').value = p.id;
+        document.getElementById('pAcademicYearId').value = p.academicYearId;
+        document.getElementById('pName').value = p.name;
+        document.getElementById('pOrder').value = p.order;
+        document.getElementById('pStart').value = p.startDate;
+        document.getElementById('pEnd').value = p.endDate;
+        document.getElementById('pStatus').value = p.status;
+    }
+
+    async function savePeriod(event) {
+        event.preventDefault();
+        const id = document.getElementById('pId').value;
+        const data = {
+            academicYearId: document.getElementById('pAcademicYearId').value,
+            name: document.getElementById('pName').value,
+            order: document.getElementById('pOrder').value,
+            startDate: document.getElementById('pStart').value,
+            endDate: document.getElementById('pEnd').value,
+            status: document.getElementById('pStatus').value
+        };
+        const url = id ? `/periods/${id}` : '/periods';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetchAPI(url, { method, body: JSON.stringify(data) });
+        if (res.ok) {
+            showMessage('periodMessage', 'Período guardado', 'success');
+            document.getElementById('periodForm').reset();
+            document.getElementById('pId').value = '';
+            loadPeriods();
+        } else {
+            const err = await res.json();
+            showMessage('periodMessage', err.message, 'error');
+        }
+    }
+
+    async function deletePeriod(id) {
+        if (confirm('¿Eliminar período?')) {
+            await fetchAPI(`/periods/${id}`, { method: 'DELETE' });
+            loadPeriods();
+        }
+    }
+
+    // ---------- Grados ----------
+    async function loadGrades() {
+        const res = await fetchAPI('/grades');
+        const grades = await res.json();
+        const tbody = document.querySelector('#gradeTable tbody');
+        tbody.innerHTML = '';
+        grades.forEach(g => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = g.id;
+            row.insertCell(1).innerText = g.name;
+            const actions = row.insertCell(2);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => { document.getElementById('gId').value = g.id; document.getElementById('gName').value = g.name; };
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deleteGrade(g.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+        });
+    }
+
+    async function saveGrade(event) {
+        event.preventDefault();
+        const id = document.getElementById('gId').value;
+        const name = document.getElementById('gName').value;
+        const url = id ? `/grades/${id}` : '/grades';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetchAPI(url, { method, body: JSON.stringify({ name }) });
+        if (res.ok) {
+            showMessage('gradeMessage', 'Grado guardado', 'success');
+            document.getElementById('gradeForm').reset();
+            document.getElementById('gId').value = '';
+            loadGrades();
+            loadGradesForGroups();
+        } else {
+            const err = await res.json();
+            showMessage('gradeMessage', err.message, 'error');
+        }
+    }
+
+    async function deleteGrade(id) {
+        if (confirm('Eliminar grado?')) {
+            await fetchAPI(`/grades/${id}`, { method: 'DELETE' });
+            loadGrades();
+            loadGradesForGroups();
+        }
+    }
+
+    // ---------- Grupos ----------
+    async function loadGroups() {
+        const res = await fetchAPI('/groups');
+        const groups = await res.json();
+        const tbody = document.querySelector('#groupTable tbody');
+        tbody.innerHTML = '';
+        groups.forEach(g => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = g.id;
+            row.insertCell(1).innerText = g.gradeName;
+            row.insertCell(2).innerText = g.name;
+            const actions = row.insertCell(3);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => fillGroupForm(g);
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deleteGroup(g.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+        });
+    }
+
+    async function loadGradesForGroups() {
+        const res = await fetchAPI('/grades');
+        const grades = await res.json();
+        const select = document.getElementById('grGradeId');
+        select.innerHTML = '<option value="">Seleccione grado</option>';
+        grades.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.innerText = g.name;
+            select.appendChild(opt);
+        });
+    }
+
+    function fillGroupForm(g) {
+        document.getElementById('grId').value = g.id;
+        document.getElementById('grGradeId').value = g.gradeId;
+        document.getElementById('grName').value = g.name;
+    }
+
+    async function saveGroup(event) {
+        event.preventDefault();
+        const id = document.getElementById('grId').value;
+        const data = {
+            gradeId: document.getElementById('grGradeId').value,
+            name: document.getElementById('grName').value
+        };
+        const url = id ? `/groups/${id}` : '/groups';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetchAPI(url, { method, body: JSON.stringify(data) });
+        if (res.ok) {
+            showMessage('groupMessage', 'Grupo guardado', 'success');
+            document.getElementById('groupForm').reset();
+            document.getElementById('grId').value = '';
+            loadGroups();
+        } else {
+            const err = await res.json();
+            showMessage('groupMessage', err.message, 'error');
+        }
+    }
+
+    async function deleteGroup(id) {
+        if (confirm('Eliminar grupo?')) {
+            await fetchAPI(`/groups/${id}`, { method: 'DELETE' });
+            loadGroups();
+        }
+    }
+
+    // ---------- Asignaturas ----------
+    async function loadSubjects() {
+        const res = await fetchAPI('/subjects');
+        const data = await res.json();
+        const tbody = document.querySelector('#subjectTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(s => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = s.id;
+            row.insertCell(1).innerText = s.name;
+            row.insertCell(2).innerText = s.area;
+            row.insertCell(3).innerText = s.intensityHours;
+            const actions = row.insertCell(4);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => {
+                document.getElementById('subjId').value = s.id;
+                document.getElementById('subjName').value = s.name;
+                document.getElementById('subjArea').value = s.area;
+                document.getElementById('subjHours').value = s.intensityHours;
+            };
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deleteSubject(s.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+        });
+    }
+
+    async function saveSubject(event) {
+        event.preventDefault();
+        const id = document.getElementById('subjId').value;
+        const data = {
+            name: document.getElementById('subjName').value,
+            area: document.getElementById('subjArea').value,
+            intensityHours: parseInt(document.getElementById('subjHours').value)
+        };
+        const url = id ? `/subjects/${id}` : '/subjects';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetchAPI(url, { method, body: JSON.stringify(data) });
+        if (res.ok) {
+            showMessage('subjectMessage', 'Asignatura guardada', 'success');
+            document.getElementById('subjectForm').reset();
+            document.getElementById('subjId').value = '';
+            loadSubjects();
+        } else {
+            const err = await res.json();
+            showMessage('subjectMessage', err.message, 'error');
+        }
+    }
+
+    async function deleteSubject(id) {
+        if (confirm('¿Eliminar asignatura?')) {
+            await fetchAPI(`/subjects/${id}`, { method: 'DELETE' });
+            loadSubjects();
+        }
+    }
+
+    // ---------- Asignaciones (subject_assignments) ----------
+    async function loadAssignments() {
+        const res = await fetchAPI('/subject-assignments');
+        const data = await res.json();
+        const tbody = document.querySelector('#assignmentTable tbody');
+        tbody.innerHTML = '';
+        for (const a of data) {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = a.id;
+            row.insertCell(1).innerText = a.academicYearId;
+            row.insertCell(2).innerText = `${a.gradeName} ${a.groupName}`;
+            row.insertCell(3).innerText = a.subjectName;
+            row.insertCell(4).innerText = a.teacherName;
+            const actions = row.insertCell(5);
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Editar';
+            editBtn.onclick = () => fillAssignmentForm(a);
+            const delBtn = document.createElement('button');
+            delBtn.innerText = 'Eliminar';
+            delBtn.className = 'delete-btn';
+            delBtn.onclick = () => deleteAssignment(a.id);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+        }
+    }
+
+    async function loadAssignmentSelects() {
+        // Años lectivos
+        const yearsRes = await fetchAPI('/academic-years');
+        const years = await yearsRes.json();
+        const yearSelect = document.getElementById('assAcademicYearId');
+        yearSelect.innerHTML = '<option value="">Seleccione</option>';
+        years.forEach(y => {
+            const opt = document.createElement('option');
+            opt.value = y.id;
+            opt.innerText = y.name;
+            yearSelect.appendChild(opt);
+        });
+
+        // Grupos (con grado asociado)
+        const groupsRes = await fetchAPI('/groups');
+        const groups = await groupsRes.json();
+        const groupSelect = document.getElementById('assGroupId');
+        groupSelect.innerHTML = '<option value="">Seleccione</option>';
+        groups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.innerText = `${g.gradeName} ${g.name}`;
+            groupSelect.appendChild(opt);
+        });
+
+        // Asignaturas
+        const subsRes = await fetchAPI('/subjects');
+        const subs = await subsRes.json();
+        const subSelect = document.getElementById('assSubjectId');
+        subSelect.innerHTML = '<option value="">Seleccione</option>';
+        subs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.innerText = s.name;
+            subSelect.appendChild(opt);
+        });
+
+        // Docentes (solo rol docente)
+        const usersRes = await fetchAPI('/users');
+        const users = await usersRes.json();
+        const teacherSelect = document.getElementById('assTeacherId');
+        teacherSelect.innerHTML = '<option value="">Seleccione</option>';
+        users.filter(u => u.role === 'docente').forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.innerText = t.name;
+            teacherSelect.appendChild(opt);
+        });
+    }
+
+    function fillAssignmentForm(a) {
+        document.getElementById('assId').value = a.id;
+        document.getElementById('assAcademicYearId').value = a.academicYearId;
+        document.getElementById('assGroupId').value = a.groupId;
+        document.getElementById('assSubjectId').value = a.subjectId;
+        document.getElementById('assTeacherId').value = a.teacherId;
+    }
+
+    async function saveAssignment(event) {
+        event.preventDefault();
+        const id = document.getElementById('assId').value;
+        const data = {
+            academicYearId: document.getElementById('assAcademicYearId').value,
+            groupId: document.getElementById('assGroupId').value,
+            subjectId: document.getElementById('assSubjectId').value,
+            teacherId: document.getElementById('assTeacherId').value
+        };
+        if (!data.academicYearId || !data.groupId || !data.subjectId || !data.teacherId) {
+            showMessage('assignmentMessage', 'Todos los campos son obligatorios', 'error');
+            return;
+        }
+        const url = id ? `/subject-assignments/${id}` : '/subject-assignments';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetchAPI(url, { method, body: JSON.stringify(data) });
+        if (res.ok) {
+            showMessage('assignmentMessage', 'Asignación guardada', 'success');
+            document.getElementById('assignmentForm').reset();
+            document.getElementById('assId').value = '';
+            loadAssignments();
+        } else {
+            const err = await res.json();
+            showMessage('assignmentMessage', err.message, 'error');
+        }
+    }
+
+    async function deleteAssignment(id) {
+        if (confirm('¿Eliminar asignación?')) {
+            await fetchAPI(`/subject-assignments/${id}`, { method: 'DELETE' });
+            loadAssignments();
+        }
+    }
+
+    // ---------- Consultas ----------
+    async function loadFullStructure() {
+        const container = document.getElementById('structureContainer');
+        container.innerHTML = '<p>Cargando estructura...</p>';
+        
+        try {
+            const res = await fetchAPI('/reports/full-structure');
+            const data = await res.json();
+            
+            container.innerHTML = '';
+            
+            // Años lectivos
+            if (data.academicYears && data.academicYears.length) {
+                let html = '<h4>📅 Años Lectivos</h4><table class="data-table"><thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Activo</th></tr></thead><tbody>';
+                data.academicYears.forEach(y => {
+                    html += `<tr><td>${y.id}</td><td>${y.name}</td><td>${y.start_date}</td><td>${y.end_date}</td><td>${y.active ? 'Sí' : 'No'}</td></tr>`;
+                });
+                html += '</tbody><tr>';
+                container.innerHTML += html;
+            }
+            
+            // Períodos
+            if (data.periods && data.periods.length) {
+                let html = '<h4>📖 Períodos</h4><table class="data-table"><thead><tr><th>ID</th><th>Año ID</th><th>Nombre</th><th>Orden</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Cerrado por</th></tr></thead><tbody>';
+                data.periods.forEach(p => {
+                    html += `<tr><td>${p.id}</td><td>${p.academic_year_id}</td><td>${p.name}</td><td>${p.order}</td><td>${p.start_date}</td><td>${p.end_date}</td><td>${p.status}</td><td>${p.closed_by_name || '-'}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML += html;
+            }
+            
+            // Grados
+            if (data.grades && data.grades.length) {
+                let html = '<h4>🎓 Grados</h4><table class="data-table"><thead><tr><th>ID</th><th>Nombre</th></tr></thead><tbody>';
+                data.grades.forEach(g => {
+                    html += `<tr><td>${g.id}</td><td>${g.name}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML += html;
+            }
+            
+            // Grupos
+            if (data.groups && data.groups.length) {
+                let html = '<h4>👥 Grupos</h4><table class="data-table"><thead><tr><th>ID</th><th>Grado</th><th>Nombre</th></tr></thead><tbody>';
+                data.groups.forEach(g => {
+                    html += `<tr><td>${g.id}</td><td>${g.grade_name}</td><td>${g.name}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML += html;
+            }
+            
+            // Asignaturas
+            if (data.subjects && data.subjects.length) {
+                let html = '<h4>📚 Asignaturas</h4><table class="data-table"><thead><tr><th>ID</th><th>Nombre</th><th>Área</th><th>Horas</th></tr></thead><tbody>';
+                data.subjects.forEach(s => {
+                    html += `<tr><td>${s.id}</td><td>${s.name}</td><td>${s.area}</td><td>${s.intensity_hours}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML += html;
+            }
+            
+            // Asignaciones
+            if (data.assignments && data.assignments.length) {
+                let html = '<h4>📌 Asignaciones</h4><table class="data-table"><thead><tr><th>ID</th><th>Año</th><th>Grado</th><th>Grupo</th><th>Asignatura</th><th>Docente</th></tr></thead><tbody>';
+                data.assignments.forEach(a => {
+                    html += `<tr><td>${a.id}</td><td>${a.academic_year_name}</td><td>${a.grade_name}</td><td>${a.group_name}</td><td>${a.subject_name}</td><td>${a.teacher_name}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML += html;
+            }
+            
+            if (container.innerHTML === '') {
+                container.innerHTML = '<p>No hay datos disponibles</p>';
+            }
+        } catch (error) {
+            container.innerHTML = `<p class="error">Error al cargar datos: ${error.message}</p>`;
+        }
+    }
+    
+    async function loadQueryAcademicYears() {
+        const res = await fetchAPI('/academic-years');
+        const years = await res.json();
+        const select = document.getElementById('queryAcademicYearId');
+        select.innerHTML = '<option value="">Seleccione año</option>';
+        years.forEach(y => {
+            const opt = document.createElement('option');
+            opt.value = y.id;
+            opt.innerText = y.name;
+            select.appendChild(opt);
+        });
+    }
+    
+    async function loadQueryPeriods() {
+        const yearId = document.getElementById('queryAcademicYearId').value;
+        if (!yearId) {
+            document.getElementById('queryPeriodId').innerHTML = '<option value="">Seleccione período</option>';
+            return;
+        }
+        const res = await fetchAPI(`/periods?academicYearId=${yearId}`);
+        const periods = await res.json();
+        const select = document.getElementById('queryPeriodId');
+        select.innerHTML = '<option value="">Seleccione período</option>';
+        periods.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.innerText = p.name;
+            select.appendChild(opt);
+        });
+    }
+    
+    async function loadQueryAssignments() {
+        const yearId = document.getElementById('queryAcademicYearId').value;
+        if (!yearId) {
+            document.getElementById('queryAssignmentId').innerHTML = '<option value="">Seleccione asignación</option>';
+            return;
+        }
+        const res = await fetchAPI(`/reports/teacher-assignments?academicYearId=${yearId}`);
+        const data = await res.json();
+        const select = document.getElementById('queryAssignmentId');
+        select.innerHTML = '<option value="">Seleccione asignación</option>';
+        if (data.assignments) {
+            data.assignments.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.innerText = `${a.grade_name} ${a.group_name} - ${a.subject_name} (${a.teacher_name})`;
+                select.appendChild(opt);
+            });
+        }
+    }
+    
+    async function viewQueryGrades() {
+        const yearId = document.getElementById('queryAcademicYearId').value;
+        const periodId = document.getElementById('queryPeriodId').value;
+        const assignmentId = document.getElementById('queryAssignmentId').value;
+        
+        if (!yearId || !periodId || !assignmentId) {
+            alert('Seleccione año, período y asignación');
+            return;
+        }
+        
+        const container = document.getElementById('queryGradesContainer');
+        container.innerHTML = '<p>Cargando notas...</p>';
+        
+        try {
+            const res = await fetchAPI(`/reports/teacher-assignments?academicYearId=${yearId}&subjectAssignmentId=${assignmentId}&periodId=${periodId}`);
+            const data = await res.json();
+            
+            if (!data.students || data.students.length === 0) {
+                container.innerHTML = '<p>No hay estudiantes matriculados en este grupo.</p>';
+                return;
+            }
+            
+            let html = `
+                <h4>Resultados de la consulta</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Estudiante</th><th>Documento</th><th>Nota Normal</th><th>Nota Actitudinal</th><th>Promedio</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.students.forEach(s => {
+                const avg = s.grades?.average;
+                let statusClass = '';
+                let statusText = '';
+                if (avg !== null && avg !== undefined) {
+                    if (avg >= 6) { statusClass = 'pass'; statusText = 'Aprobado'; }
+                    else if (avg >= 3) { statusClass = 'warning'; statusText = 'Recuperación'; }
+                    else { statusClass = 'fail'; statusText = 'Reprobado'; }
+                } else {
+                    statusText = 'Sin notas';
+                }
+                
+                html += `
+                    <tr>
+                        <td>${s.full_name}</td>
+                        <td>${s.document}</td>
+                        <td>${s.grades?.normal_note !== null ? s.grades.normal_note : '-'}</td>
+                        <td>${s.grades?.aptitudinal_note !== null ? s.grades.aptitudinal_note : '-'}</td>
+                        <td class="${statusClass}">${avg !== null ? avg.toFixed(2) : '-'}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody>
+                </table>
+                <p><strong>Estado del período:</strong> ${data.periodStatus === 'open' ? 'Abierto' : 'Cerrado (solo consulta)'}</p>`;
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<p class="error">Error al cargar notas: ${error.message}</p>`;
+        }
+    }
+
+    // UI helpers
+    function showMessage(elementId, msg, type) {
+        const div = document.getElementById(elementId);
+        div.innerText = msg;
+        div.className = `message ${type}`;
+        setTimeout(() => div.innerText = '', 3000);
+    }
+
+    // Tabs switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
+            const targetId = tab.dataset.tab;
+            document.getElementById(targetId).classList.add('active');
+            // Cargar datos dinámicos según la pestaña
+            if (targetId === 'periods') { loadPeriods(); loadAcademicYearsSelect(); }
+            if (targetId === 'grades') loadGrades();
+            if (targetId === 'groups') { loadGroups(); loadGradesForGroups(); }
+            if (targetId === 'subjects') loadSubjects();
+            if (targetId === 'assignments') { loadAssignments(); loadAssignmentSelects(); }
+        });
+    });
+
+    // Event listeners
+    document.getElementById('academicYearForm').addEventListener('submit', saveAcademicYear);
+    document.getElementById('cancelAy').addEventListener('click', () => { document.getElementById('academicYearForm').reset(); document.getElementById('ayId').value = ''; });
+    document.getElementById('periodForm').addEventListener('submit', savePeriod);
+    document.getElementById('cancelPeriod').addEventListener('click', () => { document.getElementById('periodForm').reset(); document.getElementById('pId').value = ''; });
+    document.getElementById('gradeForm').addEventListener('submit', saveGrade);
+    document.getElementById('cancelGrade').addEventListener('click', () => { document.getElementById('gradeForm').reset(); document.getElementById('gId').value = ''; });
+    document.getElementById('groupForm').addEventListener('submit', saveGroup);
+    document.getElementById('cancelGroup').addEventListener('click', () => { document.getElementById('groupForm').reset(); document.getElementById('grId').value = ''; });
+    document.getElementById('subjectForm').addEventListener('submit', saveSubject);
+    document.getElementById('cancelSubject').addEventListener('click', () => { document.getElementById('subjectForm').reset(); document.getElementById('subjId').value = ''; });
+    document.getElementById('assignmentForm').addEventListener('submit', saveAssignment);
+    document.getElementById('cancelAssignment').addEventListener('click', () => { document.getElementById('assignmentForm').reset(); document.getElementById('assId').value = ''; });
+    document.getElementById('logoutBtn').addEventListener('click', () => { localStorage.removeItem('token'); window.location.href = '/login.html'; });
+    
+    // Event listeners para consultas
+    document.getElementById('loadStructureBtn').addEventListener('click', loadFullStructure);
+    document.getElementById('queryAcademicYearId').addEventListener('change', () => {
+        loadQueryPeriods();
+        loadQueryAssignments();
+    });
+    document.getElementById('viewGradesQueryBtn').addEventListener('click', viewQueryGrades);
+
+    // Carga inicial
+    loadAcademicYears();
+    loadPeriods();
+    loadGrades();
+    loadGroups();
+    loadSubjects();
+    loadAssignments();
+    loadGradesForGroups();
+    loadAcademicYearsSelect();
+    loadAssignmentSelects();
+    loadQueryAcademicYears();
+</script>
+</body>
+</html>
