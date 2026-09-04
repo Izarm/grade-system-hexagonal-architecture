@@ -49,10 +49,12 @@ mysql -u root -p < base-de-datos.sql
 
 Esto crea la base de datos `sistema_notas` con todas las tablas y un usuario administrador inicial.
 
-**Credenciales del administrador inicial:**
-- Email: `admin@colegio.edu`
-- Contraseña: `Admin1234`
-- Cambiar la contraseña después del primer inicio de sesión.
+**Cuenta de administrador semilla (solo para instalación local):**
+- Email: `admin@example.com`
+- Contraseña: `ChangeMe123!`
+
+> **Importante:** cambia la contraseña inmediatamente después del primer inicio de
+> sesión, y nunca despliegues el sistema con la contraseña por defecto activa.
 
 ---
 

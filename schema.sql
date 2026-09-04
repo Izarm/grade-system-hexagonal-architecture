@@ -354,7 +354,8 @@ CREATE TABLE `student_elective_enrollments` (
 -- ==========================================
 -- USUARIOS ADMINISTRADORES INICIALES
 -- ==========================================
+-- Cuenta de administrador semilla (solo para instalacion local).
+-- Email: admin@example.com   Password: ChangeMe123!
+-- Cambia esta contrasena inmediatamente despues del primer inicio de sesion.
 INSERT INTO `users` (`name`, `document`, `email`, `phone`, `password`, `role`, `status`) VALUES
-('Fabian Realpe',  '1',  'fabianrealpe31@gmail.com', NULL, '$2b$10$nOMJK74UtmZAXAL15HR9n.d8mmiNK7M4MrDXvLk/ZWhEzddf4615W', 'admin', 'active'),
-('Liz',            '2',  'liz@gmail.com',             NULL, '$2b$10$AY1dD.EA7QAqCPE6jIqLk.beu1Q5rd7exI5mefIJ5ZP1PTmAnhaNW', 'admin', 'active'),
-('Zhamuel',        '3',  'zhamuel8@gmail.com',        NULL, '$2b$10$E9HaUaA/1YlPiHWIUr1dzOFT1URko58M9dqidrqvZslHcMP9Y7ij6', 'admin', 'active');
+('Administrador', '1', 'admin@example.com', NULL, '$2b$10$LHMFke4IazI0/9vivFCk6Obtuok12axs53EqarpT9naJbXw7JL4p6', 'admin', 'active');
