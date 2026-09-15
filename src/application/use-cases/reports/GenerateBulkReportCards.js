@@ -2,6 +2,9 @@ const PDFDocument = require('pdfkit');
 const archiver = require('archiver');
 const stream = require('stream');
 
+const FONT_REGULAR = 'C:\\Windows\\Fonts\\Arial.ttf';
+const FONT_BOLD    = 'C:\\Windows\\Fonts\\arialbd.ttf';
+
 class GenerateBulkReportCards {
     constructor(studentRepository) {
         this.studentRepository = studentRepository;
@@ -22,127 +25,109 @@ class GenerateBulkReportCards {
             throw new Error('No hay estudiantes para generar boletines');
         }
 
-        // Crear un stream de salida para el ZIP
-        const archive = archiver('zip', { zlib: { level: 9 } });
-        const bufferStream = new stream.PassThrough();
-        const chunks = [];
-        bufferStream.on('data', (chunk) => chunks.push(chunk));
-        
-        archive.pipe(bufferStream);
-
-        // Generar cada boletín y añadirlo al ZIP
+        // Generar PDFs primero, luego crear ZIP
+        const pdfFiles = [];
         for (const student of students) {
             const pdfBuffer = await this.generateSingleReportCard(student.id, academicYearId);
-            const fileName = `${student.full_name.replace(/[^a-z0-9]/gi, '_')}_boletin.pdf`;
-            archive.append(pdfBuffer, { name: fileName });
+            const fileName = `${(student.full_name || `estudiante_${student.id}`).replace(/[^a-zA-Z0-9]/g, '_')}_boletin.pdf`;
+            pdfFiles.push({ buffer: pdfBuffer, name: fileName });
         }
 
-        await archive.finalize();
+        return new Promise((resolve, reject) => {
+            const archive = archiver('zip', { zlib: { level: 6 } });
+            const chunks = [];
+            archive.on('data', chunk => chunks.push(chunk));
+            archive.on('end', () => resolve(Buffer.concat(chunks)));
+            archive.on('error', reject);
 
-        return new Promise((resolve) => {
-            bufferStream.on('end', () => {
-                const zipBuffer = Buffer.concat(chunks);
-                resolve(zipBuffer);
-            });
+            for (const f of pdfFiles) {
+                archive.append(f.buffer, { name: f.name });
+            }
+            archive.finalize();
         });
     }
 
     async generateSingleReportCard(studentId, academicYearId) {
-        const student = await this.studentRepository.findById(studentId);
-        const enrollment = await this.studentRepository.findEnrollmentsByStudent(studentId, academicYearId);
-        const grades = await this.studentRepository.getStudentGradesForReport(studentId, academicYearId);
-
-        // Organizar notas por período
-        const periods = {};
-        grades.forEach(g => {
-            if (!periods[g.period_name]) {
-                periods[g.period_name] = { period_order: g.period_order, subjects: [] };
-            }
-            periods[g.period_name].subjects.push({
-                name: g.subject_name,
-                area: g.area,
-                normal: g.normal_note,
-                aptitudinal: g.aptitudinal_note,
-                average: g.average
-            });
-        });
-
-        const sortedPeriods = Object.keys(periods).sort((a, b) => periods[a].period_order - periods[b].period_order);
-
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
-        const chunks = [];
-        doc.on('data', chunk => chunks.push(chunk));
-        
-        return new Promise((resolve, reject) => {
-            doc.on('end', () => resolve(Buffer.concat(chunks)));
-            doc.on('error', reject);
-            this.buildPDF(doc, student, enrollment, sortedPeriods, periods, academicYearId);
-            doc.end();
-        });
+        const GenerateStudentReportCard = require('./GenerateStudentReportCard');
+        const gen = new GenerateStudentReportCard(this.studentRepository);
+        return gen.execute(studentId, academicYearId);
     }
 
     buildPDF(doc, student, enrollment, sortedPeriods, periods, academicYearId) {
+        const L = 50;
+        const W = doc.page.width - 100;
+        const COL = [L, L + 200, L + 290, L + 375];
+        const colW = [200, 85, 80, W - 375];
+
         // Encabezado
-        doc.fontSize(20).font('Helvetica-Bold').text('Colegio San José de Tarbes', { align: 'center' });
-        doc.fontSize(14).text('Boletín Académico', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(12).font('Helvetica-Bold').text('Datos del Estudiante');
-        doc.fontSize(10).font('Helvetica');
-        doc.text(`Nombre: ${student.full_name}`);
-        doc.text(`Documento: ${student.document}`);
-        if (student.birth_date) doc.text(`Fecha de nacimiento: ${student.birth_date}`);
-        doc.text(`Grado: ${enrollment.grade_name} - Grupo: ${enrollment.group_name}`);
-        doc.text(`Año Lectivo: ${academicYearId}`);
-        doc.moveDown();
+        doc.font(FONT_BOLD).fontSize(18).text('Colegio San José de Tarbes', L, 50, { width: W, align: 'center' });
+        doc.font(FONT_REGULAR).fontSize(13).text('Boletín Académico', L, doc.y + 4, { width: W, align: 'center' });
+        doc.moveDown(1);
 
-        // Tablas por período
+        doc.font(FONT_BOLD).fontSize(10).text('Datos del Estudiante', L, doc.y);
+        doc.moveDown(0.4);
+        doc.font(FONT_REGULAR).fontSize(10);
+        doc.text(`Nombre: ${student.full_name || ''}`);
+        doc.text(`Código: ${student.student_code || ''}`);
+        doc.text(`Grado: ${enrollment.grade_name || ''} — Grupo: ${enrollment.group_name || ''}`);
+        doc.text(`Año lectivo: ${enrollment.academic_year_name || academicYearId}`);
+        doc.moveDown(1);
+
+        const drawHeader = (y) => {
+            doc.rect(L, y, W, 16).fill('#1d4ed8');
+            doc.font(FONT_BOLD).fontSize(8).fillColor('white');
+            doc.text('Asignatura',     COL[0]+3, y+4, { width: colW[0]-6 });
+            doc.text('Nota regular',   COL[1]+3, y+4, { width: colW[1]-6, align: 'center' });
+            doc.text('Actitudinal',    COL[2]+3, y+4, { width: colW[2]-6, align: 'center' });
+            doc.text('Promedio',       COL[3]+3, y+4, { width: colW[3]-6, align: 'center' });
+            doc.fillColor('black');
+        };
+
+        let sumAll = 0, cntAll = 0;
+
         for (const periodName of sortedPeriods) {
-            doc.fontSize(12).font('Helvetica-Bold').text(periodName, { underline: true });
-            doc.moveDown(0.5);
-            const startX = doc.x;
-            const colWidths = [150, 80, 80, 80];
-            doc.fontSize(9).font('Helvetica-Bold');
-            doc.text('Asignatura', startX);
-            doc.text('Nota Normal', startX + colWidths[0]);
-            doc.text('Nota Actitudinal', startX + colWidths[0] + colWidths[1]);
-            doc.text('Promedio', startX + colWidths[0] + colWidths[1] + colWidths[2]);
-            doc.moveDown(0.5);
-            doc.fontSize(9).font('Helvetica');
+            if (doc.y > doc.page.height - 150) doc.addPage();
+            doc.font(FONT_BOLD).fontSize(11).text(periodName, L, doc.y, { underline: true });
+            doc.moveDown(0.3);
+            const hY = doc.y;
+            drawHeader(hY);
+            let rowY = hY + 18;
+            let odd = true;
             for (const subject of periods[periodName].subjects) {
-                const avg = subject.average !== null ? subject.average.toFixed(2) : '-';
-                const normalStr = subject.normal !== null ? subject.normal.toFixed(2) : '-';
-                const aptitudinalStr = subject.aptitudinal !== null ? subject.aptitudinal.toFixed(2) : '-';
-                doc.text(subject.name, startX);
-                doc.text(normalStr, startX + colWidths[0]);
-                doc.text(aptitudinalStr, startX + colWidths[0] + colWidths[1]);
-                if (subject.average !== null) {
-                    if (subject.average >= 9.0) doc.fillColor('#0ea5e9');       // Superior
-                    else if (subject.average >= 7.8) doc.fillColor('#10b981'); // Alto
-                    else if (subject.average >= 6.5) doc.fillColor('#f59e0b'); // Básico
-                    else doc.fillColor('#ef4444');                              // Bajo
+                if (rowY > doc.page.height - 80) { doc.addPage(); drawHeader(50); rowY = 68; odd = true; }
+                doc.rect(L, rowY, W, 14).fill(odd ? '#f1f5f9' : '#ffffff');
+                odd = !odd;
+                const avgVal  = subject.average !== null ? parseFloat(subject.average) : null;
+                const normVal = subject.normal  !== null ? parseFloat(subject.normal)  : null;
+                const aptVal  = subject.aptitudinal !== null ? parseFloat(subject.aptitudinal) : null;
+                const avgStr  = avgVal  !== null ? avgVal.toFixed(2)  : '-';
+                const normStr = normVal !== null ? normVal.toFixed(2) : '-';
+                const aptStr  = aptVal  !== null ? aptVal.toFixed(2)  : '-';
+                let avgColor = '#1e293b';
+                if (avgVal !== null) {
+                    if (avgVal >= 9.0) avgColor = '#0284c7';
+                    else if (avgVal >= 7.8) avgColor = '#16a34a';
+                    else if (avgVal >= 6.5) avgColor = '#d97706';
+                    else avgColor = '#dc2626';
+                    sumAll += avgVal; cntAll++;
                 }
-                doc.text(avg, startX + colWidths[0] + colWidths[1] + colWidths[2]);
-                doc.fillColor('black');
-                doc.moveDown(0.3);
+                doc.font(FONT_REGULAR).fontSize(8).fillColor('#1e293b');
+                doc.text(subject.name||'', COL[0]+3, rowY+3, { width: colW[0]-6 });
+                doc.text(normStr,          COL[1]+3, rowY+3, { width: colW[1]-6, align: 'center' });
+                doc.text(aptStr,           COL[2]+3, rowY+3, { width: colW[2]-6, align: 'center' });
+                doc.fillColor(avgColor);
+                doc.text(avgStr,           COL[3]+3, rowY+3, { width: colW[3]-6, align: 'center' });
+                doc.fillColor('#1e293b');
+                rowY += 14;
             }
-            doc.moveDown();
+            doc.y = rowY + 6;
+            doc.moveDown(0.5);
         }
 
-        // Promedio general
-        let sumAverages = 0;
-        let count = 0;
-        for (const periodName of sortedPeriods) {
-            for (const subject of periods[periodName].subjects) {
-                if (subject.average !== null) {
-                    sumAverages += subject.average;
-                    count++;
-                }
-            }
-        }
-        const overallAvg = count > 0 ? (sumAverages / count).toFixed(2) : '-';
-        doc.fontSize(12).font('Helvetica-Bold').text(`Promedio General: ${overallAvg}`, { align: 'right' });
+        const overallAvg = cntAll > 0 ? (sumAll / cntAll).toFixed(2) : '-';
+        doc.font(FONT_BOLD).fontSize(11).text(`Promedio general del año: ${overallAvg}`, 50, doc.y, { width: doc.page.width - 100, align: 'right' });
         doc.moveDown(2);
-        doc.fontSize(8).font('Helvetica').text('Documento generado por el Sistema de Gestión Académica', { align: 'center' });
+        doc.font(FONT_REGULAR).fontSize(7).text('Documento generado por el Sistema de Gestión Académica — Colegio San José de Tarbes', 50, doc.y, { width: doc.page.width - 100, align: 'center' });
     }
 }
 

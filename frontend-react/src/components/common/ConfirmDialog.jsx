@@ -4,13 +4,16 @@ const ConfirmDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b">
           <h3 className="text-lg font-semibold text-gray-900">{title || 'Confirmar acción'}</h3>
         </div>
         <div className="px-6 py-4">
-          <p className="text-gray-600">{message || '¿Estás seguro de realizar esta acción?'}</p>
+          {typeof message === 'string'
+            ? <p className="text-gray-600">{message || '¿Estás seguro de realizar esta acción?'}</p>
+            : <div className="text-gray-600 text-sm">{message}</div>
+          }
         </div>
         <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
           <button

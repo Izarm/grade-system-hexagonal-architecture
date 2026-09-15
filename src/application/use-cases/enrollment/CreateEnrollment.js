@@ -8,7 +8,8 @@ class CreateEnrollment {
         if (!studentId || !groupId || !academicYearId) {
             throw new Error('Faltan campos obligatorios');
         }
-        return await this.enrollmentRepository.create(data);
+        const enrollmentValue = data.enrollmentValue ? parseInt(data.enrollmentValue) : null;
+        return await this.enrollmentRepository.create({ ...data, enrollmentValue });
     }
 }
 

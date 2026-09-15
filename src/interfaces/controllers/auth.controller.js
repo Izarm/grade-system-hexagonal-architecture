@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const LoginUser = require('../../application/use-cases/auth/LoginUser');
 const RegisterUser = require('../../application/use-cases/auth/RegisterUser');
 const ForgotPassword = require('../../application/use-cases/auth/ForgotPassword');
@@ -27,7 +28,7 @@ exports.register = async (req, res) => {
         const newUser = await registerUser.execute(userData);
         res.status(201).json({ message: 'Usuario creado exitosamente', user: newUser });
     } catch (error) {
-        console.error('Error en register:', error);
+
         res.status(400).json({ message: error.message });
     }
 };
@@ -103,7 +104,11 @@ exports.updateMe = async (req, res) => {
     try {
         const bcrypt = require('bcrypt');
         const pool = require('../../infrastructure/database/mysql');
-        const { name, document, email, phone, currentPassword, newPassword } = req.body;
+        const { leerNombreDePeticion } = require('../../shared/personName');
+        const { email, phone, currentPassword, newPassword } = req.body;
+
+        // Apellidos y nombres por separado (acepta tambien el { name } antiguo).
+        const nombre = leerNombreDePeticion(req.body);
 
         // Si quiere cambiar contraseña, verificar la actual
         if (newPassword) {
@@ -112,16 +117,58 @@ exports.updateMe = async (req, res) => {
             if (!valid) return res.status(400).json({ message: 'La contraseña actual es incorrecta' });
             const hashed = await bcrypt.hash(newPassword, 10);
             await pool.query(
-                `UPDATE users SET name=?, document=?, email=?, phone=?, password=? WHERE id=? AND deleted_at IS NULL`,
-                [name, document, email, phone || null, hashed, req.user.id]
+                `UPDATE users SET last_name=?, first_name=?, email=?, phone=?, password=?
+                 WHERE id=? AND deleted_at IS NULL`,
+                [nombre.apellidos, nombre.nombres, email, phone || null, hashed, req.user.id]
             );
         } else {
             await pool.query(
-                `UPDATE users SET name=?, document=?, email=?, phone=? WHERE id=? AND deleted_at IS NULL`,
-                [name, document, email, phone || null, req.user.id]
+                `UPDATE users SET last_name=?, first_name=?, email=?, phone=?
+                 WHERE id=? AND deleted_at IS NULL`,
+                [nombre.apellidos, nombre.nombres, email, phone || null, req.user.id]
             );
         }
         res.json({ message: 'Perfil actualizado correctamente' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Renovar token (refresh)
+exports.refresh = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ message: 'Token no proporcionado' });
+        const oldToken = authHeader.split(' ')[1];
+        let payload;
+        try {
+            payload = jwt.verify(oldToken, process.env.JWT_SECRET);
+        } catch (err) {
+            if (err.name === 'TokenExpiredError') {
+                payload = jwt.decode(oldToken);
+                if (!payload || !payload.id || !payload.exp) {
+                    return res.status(401).json({ message: 'Token inválido' });
+                }
+                // Solo se permite refrescar dentro de 1 hora después de expirar
+                if (Date.now() / 1000 - payload.exp > 3600) {
+                    return res.status(401).json({ message: 'Sesión expirada. Inicia sesión nuevamente.' });
+                }
+            } else {
+                return res.status(401).json({ message: 'Token inválido' });
+            }
+        }
+        const pool = require('../../infrastructure/database/mysql');
+        const [[user]] = await pool.query(
+            `SELECT id, name, email, role, status FROM users WHERE id = ? AND deleted_at IS NULL`,
+            [payload.id]
+        );
+        if (!user || user.status !== 'active') return res.status(401).json({ message: 'Usuario inactivo' });
+        const newToken = jwt.sign(
+            { id: user.id, role: user.role, name: user.name, email: user.email },
+            process.env.JWT_SECRET,
+            { expiresIn: '2h' }
+        );
+        res.json({ token: newToken, user });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

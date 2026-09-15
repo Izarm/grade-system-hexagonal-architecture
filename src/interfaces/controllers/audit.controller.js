@@ -12,7 +12,6 @@ exports.list = async (req, res) => {
         ]);
         res.json({ data: rows, total, page: Number(page), limit: Number(limit) });
     } catch (error) {
-        console.error('Error en audit list:', error.message, error.code);
         if (error.code === 'ER_NO_SUCH_TABLE') {
             return res.status(500).json({ message: 'La tabla de auditorías no existe. Ejecuta el SQL de creación en tu base de datos.' });
         }

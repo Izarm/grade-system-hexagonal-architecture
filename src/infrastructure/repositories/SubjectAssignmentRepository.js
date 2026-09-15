@@ -3,6 +3,21 @@ const pool = require('../database/mysql');
 class SubjectAssignmentRepository {
     async create(data) {
         const { groupId, gradeId, subjectId, teacherId, academicYearId, isElective, weeklyHours } = data;
+        // Reactivar si existe una asignación soft-deleted con la misma combinación (grupo+asignatura+año)
+        const [deleted] = await pool.query(
+            `SELECT id FROM subject_assignments
+             WHERE group_id = ? AND subject_id = ? AND academic_year_id = ? AND deleted_at IS NOT NULL`,
+            [groupId || null, subjectId, academicYearId]
+        );
+        if (deleted.length > 0) {
+            await pool.query(
+                `UPDATE subject_assignments
+                 SET teacher_id = ?, grade_id = ?, is_elective = ?, weekly_hours = ?, deleted_at = NULL
+                 WHERE id = ?`,
+                [teacherId, gradeId || null, isElective || false, weeklyHours || null, deleted[0].id]
+            );
+            return { id: deleted[0].id, ...data };
+        }
         const [result] = await pool.query(
             `INSERT INTO subject_assignments
              (group_id, grade_id, subject_id, teacher_id, academic_year_id, is_elective, weekly_hours)
@@ -24,11 +39,26 @@ class SubjectAssignmentRepository {
     }
 
     async delete(id) {
-        const [result] = await pool.query(
-            `UPDATE subject_assignments SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
-            [id]
-        );
-        return result.affectedRows > 0;
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const [result] = await connection.query(
+                `UPDATE subject_assignments SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
+                [id]
+            );
+            // Cascade: soft-delete grade_records linked to this assignment
+            await connection.query(
+                `UPDATE grade_records SET deleted_at = NOW() WHERE subject_assignment_id = ? AND deleted_at IS NULL`,
+                [id]
+            );
+            await connection.commit();
+            return result.affectedRows > 0;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     }
 
     async findById(id) {

@@ -58,8 +58,22 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 /* ─── Animations ─────────────────────────────────────────────── */
-@keyframes fadeIn  { from { opacity:0; transform:translateY(6px);  } to { opacity:1; transform:translateY(0); } }
-@keyframes fadeUp  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+/* IMPORTANTE: el estado final (to) NO debe declarar transform. Un transform
+   persistente (aunque sea translateY(0)) convierte al elemento en el bloque
+   contenedor de sus descendientes position:fixed, y eso descentra los modales
+   (aparecían "muy abajo"). Al terminar sin transform, los modales fixed vuelven
+   a posicionarse respecto a la pantalla. */
+/* fadeIn/fadeUp envuelven el contenido de las páginas (y por tanto los modales),
+   así que NO deben usar transform en ningún momento: animan solo opacidad.
+   Aun así, animar la opacidad tampoco es inocuo: mientras la animación está en
+   efecto el elemento crea un contexto de apilamiento, y sus descendientes
+   position:fixed quedan encerrados en él aunque lleven z-index alto. Por eso
+   estas clases se usan en tarjetas sueltas, nunca en el contenedor que envuelve
+   una pantalla entera. */
+@keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+@keyframes fadeUp  { from { opacity:0; } to { opacity:1; } }
+/* modalIn se aplica al propio modal (dentro del overlay fixed), aquí el
+   transform es seguro y da el efecto de aparición. */
 @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
 
 .animate-fadeIn,

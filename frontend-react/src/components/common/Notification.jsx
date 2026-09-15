@@ -22,10 +22,10 @@ const Notification = ({ message, type = 'info', duration = 4000, onClose }) => {
   }[type];
 
   const icon = {
-    success: '✓',
-    error: '✗',
-    warning: '⚠',
-    info: 'ℹ'
+    success: '+',
+    error: 'x',
+    warning: '!',
+    info: 'i'
   }[type];
 
   return (

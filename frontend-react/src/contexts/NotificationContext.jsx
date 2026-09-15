@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import Notification from '../components/common/Notification';
 
 const NotificationContext = createContext();
@@ -13,12 +13,21 @@ export const useNotification = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
+  const timersRef = useRef({});
+
+  // Limpia todos los timers al desmontar
+  useEffect(() => {
+    return () => {
+      Object.values(timersRef.current).forEach(clearTimeout);
+    };
+  }, []);
 
   const showNotification = useCallback((message, type = 'info', duration = 4000) => {
     const id = Date.now();
     setNotifications(prev => [...prev, { id, message, type, duration }]);
-    setTimeout(() => {
+    timersRef.current[id] = setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
+      delete timersRef.current[id];
     }, duration);
   }, []);
 

@@ -1,47 +1,23 @@
-class CreateGrade {
-    constructor(gradeRepository) {
-        this.gradeRepository = gradeRepository;
+class CreatePeriod {
+    constructor(periodRepository) {
+        this.periodRepository = periodRepository;
     }
 
-    async execute(name) {
-        if (!name) throw new Error('El nombre del grado es obligatorio');
-        
-        // Verificar si ya existe un grado con ese nombre (incluyendo eliminados)
-        const existingGrade = await this.gradeRepository.findByNameIncludeDeleted(name);
-        
-        if (existingGrade) {
-            // Si existe pero está eliminado, reactivarlo
-            if (existingGrade.deleted_at) {
-                await this.gradeRepository.reactivate(existingGrade.id);
-                
-                // Reactivar sus grupos A y B
-                const GroupRepository = require('../../infrastructure/repositories/GroupRepository');
-                const groupRepo = new GroupRepository();
-                const groups = await groupRepo.findByGrade(existingGrade.id);
-                
-                for (const group of groups) {
-                    await groupRepo.reactivate(group.id);
-                }
-                
-                return existingGrade;
-            } else {
-                throw new Error('Ya existe un grado con ese nombre');
-            }
+    async execute(data) {
+        const { academicYearId, name, order, startDate, endDate, percentage, status } = data;
+        if (!academicYearId || !name || !order) {
+            throw new Error('El año lectivo, nombre y orden del periodo son obligatorios');
         }
-        
-        // Crear el grado
-        const grade = await this.gradeRepository.create(name);
-        const gradeId = grade.id;
-        
-        // Crear grupos A y B
-        const GroupRepository = require('../../infrastructure/repositories/GroupRepository');
-        const groupRepo = new GroupRepository();
-        
-        await groupRepo.create({ gradeId, name: 'A' });
-        await groupRepo.create({ gradeId, name: 'B' });
-        
-        return grade;
+        return await this.periodRepository.create({
+            academicYearId,
+            name,
+            order,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            percentage: percentage || 0,
+            status: status || 'open'
+        });
     }
 }
 
-module.exports = CreateGrade;
+module.exports = CreatePeriod;

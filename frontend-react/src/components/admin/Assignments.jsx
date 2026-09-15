@@ -70,24 +70,18 @@ const Assignments = () => {
                 if (resetPage) setCurrentPage(1);
             }
 
-            const groupsRes = await api.get('/groups');
-            const groupsData = extractData(groupsRes.data);
-            const gradesRes = await api.get('/grades');
-            let gradesData = extractData(gradesRes.data);
-
-            try {
-                const gradesAllRes = await api.get('/grades?all=true');
-                const gradesAllData = extractData(gradesAllRes.data);
-                if (gradesAllData.length > gradesData.length) gradesData = gradesAllData;
-            } catch (e) { /* usar solo activos */ }
-
-            const gradeMap = {};
-            gradesData.forEach(g => { gradeMap[g.id] = g.name; });
+            const yearParam = activeYear ? `?academicYearId=${activeYear.id}` : '';
+            const groupsRes = await api.get(`/groups${yearParam}`);
+            const groupsData = extractData(groupsRes.data)
+                // Excluir grados de solo matrícula (preescolar): no llevan notas
+                .filter(group => group.takes_grades !== 0);
 
             const groupsWithDisplay = groupsData.map(group => ({
                 ...group,
-                grade_name: gradeMap[group.grade_id] || `Grado ${group.grade_id}`,
-                displayName: gradeMap[group.grade_id] || `Grado ${group.grade_id}`
+                grade_name: group.grade_name || `Grado ${group.grade_id}`,
+                displayName: group.name && group.name !== group.grade_name
+                    ? `${group.grade_name} ${group.name}`
+                    : group.grade_name || `Grado ${group.grade_id}`
             }));
 
             groupsWithDisplay.sort((a, b) => {
@@ -541,7 +535,13 @@ const Assignments = () => {
                                                     ? <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Electiva</span>
                                                     : <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Regular</span>}
                                             </td>
-                                            <td className="px-5 py-3 font-medium text-gray-800">{assignment.is_elective ? 'Todos' : (assignment.grade_name || '-')}</td>
+                                            <td className="px-5 py-3 font-medium text-gray-800">
+                                                {assignment.is_elective
+                                                    ? 'Todos'
+                                                    : assignment.grade_name
+                                                        ? `${assignment.grade_name}${assignment.group_name ? ' ' + assignment.group_name : ''}`
+                                                        : '-'}
+                                            </td>
                                             <td className="px-5 py-3 text-gray-600">{assignment.subject_name || '-'}</td>
                                             <td className="px-5 py-3 text-gray-600">{assignment.teacher_name || '-'}</td>
                                             <td className="px-5 py-3 text-gray-600">{assignment.weekly_hours != null ? `${assignment.weekly_hours} h` : '-'}</td>

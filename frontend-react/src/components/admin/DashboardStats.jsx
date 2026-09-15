@@ -226,7 +226,7 @@ const DashboardStats = () => {
                     <div className="flex items-center justify-between mb-5">
                         <div>
                             <h3 className="text-sm font-bold text-gray-800">Rendimiento por grado</h3>
-                            <p className="text-xs text-gray-400 mt-0.5">{performanceByGrade.length} grupos — promedio por grado</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{performanceByGrade.length} cursos — promedio por grupo</p>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-400">
                             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-400" />Superior ≥9.0</span>
@@ -252,7 +252,7 @@ const DashboardStats = () => {
                                 <div key={i} className="flex items-center gap-3">
                                     <span className="text-xs font-semibold text-gray-600 w-10 shrink-0">{g.grade_name}</span>
                                     <Bar value={avg} max={maxAvg} color={barColor} />
-                                    <span className={`text-xs font-bold w-10 text-right shrink-0 ${textColor}`}>{avg.toFixed(2)}</span>
+                                    <span className={`text-xs font-bold w-10 text-right shrink-0 ${textColor}`}>{avg.toFixed(1)}</span>
                                     <div className="flex gap-1 shrink-0">
                                         <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">{g.high_performance || 0}</span>
                                         <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 bg-red-50 text-red-500 text-[10px] font-bold rounded-full">{g.at_risk || 0}</span>
@@ -265,7 +265,7 @@ const DashboardStats = () => {
                     <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                             <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                            <span className="text-xs text-gray-500">Mejor: <strong className="text-emerald-600">{performanceByGrade[0]?.grade_name}</strong> — {parseFloat(performanceByGrade[0]?.avg_score).toFixed(2)}</span>
+                            <span className="text-xs text-gray-500">Mejor: <strong className="text-emerald-600">{performanceByGrade[0]?.grade_name}</strong> — {parseFloat(performanceByGrade[0]?.avg_score).toFixed(1)}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                             <span className="h-2 w-2 rounded-full bg-red-400" />

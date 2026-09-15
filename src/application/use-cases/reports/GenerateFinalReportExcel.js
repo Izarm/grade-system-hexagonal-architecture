@@ -11,14 +11,14 @@ class GenerateFinalReportExcel {
         // 1. Datos del estudiante
         const [studentRows] = await this.pool.query(
             `SELECT s.id, s.full_name, s.student_code,
-                    g.id as grade_id, g.name as grade_name, g.head_teacher_id,
+                    g.id as grade_id, g.name as grade_name, grp.head_teacher_id,
                     grp.name as group_name,
                     u.name as director_name
              FROM students s
              JOIN enrollments e ON s.id = e.student_id
              JOIN \`groups\` grp ON e.group_id = grp.id
              JOIN grades g ON grp.grade_id = g.id
-             LEFT JOIN users u ON g.head_teacher_id = u.id
+             LEFT JOIN users u ON grp.head_teacher_id = u.id
              WHERE s.id = ? AND e.academic_year_id = ? AND e.deleted_at IS NULL
              LIMIT 1`,
             [studentId, academicYearId]

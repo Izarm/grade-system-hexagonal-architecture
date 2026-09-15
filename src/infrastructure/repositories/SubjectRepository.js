@@ -41,6 +41,29 @@ class SubjectRepository {
         );
         return rows[0] || null;
     }
+
+    async findByNameIncludeDeleted(name) {
+        const [rows] = await pool.query(
+            `SELECT id, name, area, deleted_at FROM subjects WHERE name = ?`,
+            [name]
+        );
+        return rows[0] || null;
+    }
+
+    async reactivate(id) {
+        await pool.query(
+            `UPDATE subjects SET deleted_at = NULL WHERE id = ?`,
+            [id]
+        );
+        return this.findById(id);
+    }
+
+    async deleteAssignmentsBySubject(subjectId) {
+        await pool.query(
+            `UPDATE subject_assignments SET deleted_at = NOW() WHERE subject_id = ? AND deleted_at IS NULL`,
+            [subjectId]
+        );
+    }
 }
 
 module.exports = SubjectRepository;

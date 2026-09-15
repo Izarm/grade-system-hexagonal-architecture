@@ -57,11 +57,13 @@ const HeadTeacherReport = () => {
 
     const loadGrades = async () => {
         try {
-            const res = await api.get('/grades');
-            const gradesData = extractData(res.data);
+            const res = await api.get('/groups');
+            const groupsData = extractData(res.data);
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            const myGrades = gradesData.filter(g => g.head_teacher_id === user.id);
-            const sortedGrades = sortGrades(myGrades);
+            const myGroups = groupsData
+                .filter(g => g.head_teacher_id === user.id && g.takes_grades !== 0)
+                .map(g => ({ id: g.id, name: `${g.grade_name} ${g.name}` }));
+            const sortedGrades = sortGrades(myGroups);
             setGrades(sortedGrades);
         } catch (error) {
             console.error('Error cargando grados:', error);
@@ -121,18 +123,9 @@ const HeadTeacherReport = () => {
 
         setLoading(true);
         try {
-            const groupsRes = await api.get(`/groups/by-grade/${selectedGrade}`);
-            const groups = extractData(groupsRes.data);
-            
-            if (groups.length === 0) {
-                setStudents([]);
-                setLoading(false);
-                return;
-            }
+            const groupIds = [selectedGrade];
 
-            const groupIds = groups.map(g => g.id);
-
-            // Use dedicated endpoint that returns ALL subjects for the grade (no teacher filter)
+            // Use dedicated endpoint that returns ALL subjects for this group (no teacher filter)
             const assignmentsRes = await api.get(
                 `/subject-assignments/by-grade/${selectedGrade}?academicYearId=${activeYear.id}`
             );
@@ -287,10 +280,11 @@ const HeadTeacherReport = () => {
         );
     }
 
-    const formatValue = (value, isAvg = false) => {
-        if (value === null || value === undefined) return '-';
-        if (typeof value === 'number') return isAvg ? value.toFixed(2) : value;
-        return value;
+    const formatValue = (value) => {
+        if (value === null || value === undefined || value === '') return '-';
+        const num = parseFloat(value);
+        if (isNaN(num)) return value;
+        return num.toFixed(1);
     };
 
     return (
@@ -382,6 +376,7 @@ const HeadTeacherReport = () => {
                                         <th rowSpan="2" className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border">Folio</th>
                                         <th rowSpan="2" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border">Estudiante</th>
                                         <th rowSpan="2" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border">Código</th>
+                                        <th rowSpan="2" className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border">Logro</th>
                                         {subjects.map(subject => {
                                             const isElective = subject.is_elective === 1;
                                             return (
@@ -390,7 +385,6 @@ const HeadTeacherReport = () => {
                                                 </th>
                                             );
                                         })}
-                                        <th rowSpan="2" className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border">Reseña</th>
                                     </tr>
                                     <tr className="border-b">
                                         {subjects.map(subject => {
@@ -413,19 +407,6 @@ const HeadTeacherReport = () => {
                                                 <td className="px-3 py-2 text-center font-bold text-gray-700 border">{student.folio || '-'}</td>
                                                 <td className="px-3 py-2 text-gray-700 border">{student.full_name}</td>
                                                 <td className="px-3 py-2 text-gray-500 border">{student.student_code}</td>
-                                                {subjects.map((subject) => {
-                                                    const nota = student.notasMap[subject.subject_id || subject.subjectId];
-                                                    const normal = nota?.normal;
-                                                    const aptitudinal = nota?.aptitudinal;
-                                                    const absences = nota?.absences;
-                                                    return (
-                                                        <Fragment key={`${student.id}-${subject.id}`}>
-                                                            <td className="px-2 py-2 text-center border font-medium">{formatValue(normal, isFinalReport)}</td>
-                                                            {!subject.is_elective && <td className="px-2 py-2 text-center border">{formatValue(aptitudinal, isFinalReport)}</td>}
-                                                            <td className="px-2 py-2 text-center border">{formatValue(absences)}</td>
-                                                        </Fragment>
-                                                    );
-                                                })}
                                                 <td className="px-3 py-2 text-center border">
                                                     <button
                                                         onClick={() => openReviewModal(student)}
@@ -435,9 +416,22 @@ const HeadTeacherReport = () => {
                                                                 : 'text-blue-700 hover:text-blue-700'
                                                         }`}
                                                     >
-                                                        {studentReview ? 'Editar reseña' : 'Agregar reseña'}
+                                                        {studentReview ? 'Editar logro' : 'Agregar logro'}
                                                     </button>
                                                 </td>
+                                                {subjects.map((subject) => {
+                                                    const nota = student.notasMap[subject.subject_id || subject.subjectId];
+                                                    const normal = nota?.normal;
+                                                    const aptitudinal = nota?.aptitudinal;
+                                                    const absences = nota?.absences;
+                                                    return (
+                                                        <Fragment key={`${student.id}-${subject.id}`}>
+                                                            <td className="px-2 py-2 text-center border font-medium">{formatValue(normal)}</td>
+                                                            {!subject.is_elective && <td className="px-2 py-2 text-center border">{formatValue(aptitudinal)}</td>}
+                                                            <td className="px-2 py-2 text-center border">{absences === null || absences === undefined || absences === '' ? '-' : parseInt(absences)}</td>
+                                                        </Fragment>
+                                                    );
+                                                })}
                                             </tr>
                                         );
                                     })}
@@ -448,35 +442,35 @@ const HeadTeacherReport = () => {
                 )}
             </div>
 
-            {/* Modal para reseña */}
+            {/* Modal para logro */}
             {showReviewModal && currentStudent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] overflow-hidden">
                         <div className="flex justify-between items-center px-5 py-3 border-b border-gray-100 bg-gray-50">
                             <h3 className="text-[15px] font-semibold text-gray-800">
-                                Reseña para {currentStudent.full_name}
+                                Logro para {currentStudent.full_name}
                             </h3>
-                            <button 
+                            <button
                                 onClick={() => setShowReviewModal(false)}
                                 className="text-gray-400 hover:text-gray-600 text-xl"
                             >
                                 &times;
                             </button>
                         </div>
-                        
+
                         <div className="p-5">
                             <textarea
                                 value={currentReview}
                                 onChange={(e) => setCurrentReview(e.target.value)}
-                                placeholder="Escriba aquí la reseña u observación para este estudiante..."
+                                placeholder="Escriba aquí el logro u observación para este estudiante..."
                                 rows={6}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm resize-none"
                             />
                             <p className="text-xs text-gray-400 mt-2">
-                                Esta reseña será visible en el reporte del estudiante.
+                                Este logro será visible en el reporte del estudiante.
                             </p>
                         </div>
-                        
+
                         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
                             <button
                                 onClick={() => setShowReviewModal(false)}
@@ -489,7 +483,7 @@ const HeadTeacherReport = () => {
                                 disabled={saving}
                                 className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
                             >
-                                {saving ? 'Guardando...' : 'Guardar reseña'}
+                                {saving ? 'Guardando...' : 'Guardar logro'}
                             </button>
                         </div>
                     </div>

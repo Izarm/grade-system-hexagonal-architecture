@@ -1,18 +1,30 @@
 const pool = require('../database/mysql');
+const { leerNombreDePeticion } = require('../../shared/personName');
+const { ValidationError } = require('../../shared/errors');
+const { gradeBlock } = require('../constants/gradeRanges');
 
 class GradeRepository {
-    async create(name) {
-        const [result] = await pool.query(
-            `INSERT INTO grades (name) VALUES (?)`,
-            [name]
-        );
-        const gradeId = result.insertId;
-        // Crear automáticamente el grupo con el mismo nombre del grado
-        await pool.query(
-            `INSERT INTO \`groups\` (grade_id, name) VALUES (?, ?)`,
-            [gradeId, name]
-        );
-        return { id: gradeId, name };
+    async create(name, academicYearId = null) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const [result] = await connection.query(
+                `INSERT INTO grades (name, academic_year_id) VALUES (?, ?)`,
+                [name, academicYearId]
+            );
+            const gradeId = result.insertId;
+            await connection.query(
+                `INSERT INTO \`groups\` (grade_id, name) VALUES (?, 'A')`,
+                [gradeId]
+            );
+            await connection.commit();
+            return { id: gradeId, name, academic_year_id: academicYearId };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     }
 
     async update(id, name) {
@@ -40,10 +52,15 @@ class GradeRepository {
         return rows[0] || null;
     }
 
-    async findAll() {
+    async findAll(academicYearId = null) {
         try {
+            const where = academicYearId
+                ? 'WHERE deleted_at IS NULL AND academic_year_id = ?'
+                : 'WHERE deleted_at IS NULL';
+            const params = academicYearId ? [academicYearId] : [];
             const [rows] = await pool.query(
-                `SELECT id, name, head_teacher_id FROM grades WHERE deleted_at IS NULL ORDER BY CAST(name AS UNSIGNED) ASC, RIGHT(name, 1) ASC`
+                `SELECT id, name, head_teacher_id, academic_year_id, takes_grades FROM grades ${where} ORDER BY CAST(name AS UNSIGNED) ASC, RIGHT(name, 1) ASC`,
+                params
             );
             return rows;
         } catch (error) {
@@ -52,9 +69,16 @@ class GradeRepository {
         }
     }
 
-    async findByNameIncludeDeleted(name) {
+    async findByNameIncludeDeleted(name, academicYearId = null) {
+        if (academicYearId) {
+            const [rows] = await pool.query(
+                `SELECT id, name, deleted_at FROM grades WHERE name = ? AND academic_year_id = ?`,
+                [name, academicYearId]
+            );
+            return rows[0] || null;
+        }
         const [rows] = await pool.query(
-            `SELECT id, name, deleted_at FROM grades WHERE name = ?`,
+            `SELECT id, name, deleted_at FROM grades WHERE name = ? AND academic_year_id IS NULL`,
             [name]
         );
         return rows[0] || null;
@@ -93,6 +117,31 @@ class GradeRepository {
             [gradeId]
         );
         return rows[0] || null;
+    }
+
+    async deleteGroupsByGrade(gradeId) {
+        await pool.query(
+            `UPDATE \`groups\` SET deleted_at = NOW() WHERE grade_id = ? AND deleted_at IS NULL`,
+            [gradeId]
+        );
+    }
+
+    async deleteAssignmentsByGrade(gradeId) {
+        const [groups] = await pool.query(
+            `SELECT id FROM \`groups\` WHERE grade_id = ?`,
+            [gradeId]
+        );
+        const groupIds = groups.map(g => g.id);
+        if (groupIds.length > 0) {
+            await pool.query(
+                `UPDATE subject_assignments SET deleted_at = NOW() WHERE group_id IN (?) AND deleted_at IS NULL`,
+                [groupIds]
+            );
+        }
+        await pool.query(
+            `UPDATE subject_assignments SET deleted_at = NOW() WHERE grade_id = ? AND deleted_at IS NULL`,
+            [gradeId]
+        );
     }
 
     async deleteEnrollmentsByGrade(gradeId) {
@@ -163,19 +212,47 @@ class GradeRepository {
                     [gradeId, groupName]
                 );
                 groupId = newGroup.insertId;
-                console.log(`Grupo "${groupName}" creado automáticamente para grado ${gradeId}`);
             } else {
                 groupId = groups[0].id;
             }
             
             const studentIds = [];
             
-            for (const student of students) {
-                if (!student.fullName || !student.studentCode) continue;
-                
+            // Se valida TODA la lista antes de insertar nada. Antes las filas
+            // malas se saltaban en silencio y el usuario creia que se habian
+            // cargado todos los estudiantes.
+            const validados = [];
+            const errores = [];
+
+            students.forEach((student, indice) => {
+                const fila = indice + 1;
+                const codigo = String(student.studentCode ?? '').trim();
+
+                if (codigo === '') {
+                    errores.push(`Fila ${fila}: falta el codigo del estudiante`);
+                    return;
+                }
+                try {
+                    // Acepta { lastName, firstName } y tambien el { fullName }
+                    // de un solo campo (por ejemplo, una carga desde Excel).
+                    const nombre = leerNombreDePeticion(student);
+                    validados.push({ ...nombre, studentCode: codigo });
+                } catch (error) {
+                    errores.push(`Fila ${fila} (${codigo}): ${error.message}`);
+                }
+            });
+
+            if (errores.length > 0) {
+                throw new ValidationError(
+                    'No se cargó ningún estudiante. Corrige estos datos:\n- ' + errores.join('\n- ')
+                );
+            }
+
+            // `full_name` es columna generada: no se escribe.
+            for (const estudiante of validados) {
                 const [studentResult] = await connection.query(
-                    `INSERT INTO students (full_name, student_code) VALUES (?, ?)`,
-                    [student.fullName, student.studentCode]
+                    `INSERT INTO students (last_name, first_name, student_code) VALUES (?, ?, ?)`,
+                    [estudiante.apellidos, estudiante.nombres, estudiante.studentCode]
                 );
                 studentIds.push(studentResult.insertId);
             }
@@ -222,34 +299,46 @@ class GradeRepository {
                  ELSE 0
                END ASC,
                CAST(g.name AS UNSIGNED) ASC,
-               RIGHT(g.name, 1) ASC,
+               FIELD(grp.name, 'A','B','C','D','E','F','G','H','I','J') ASC,
                s.full_name ASC`,
             [academicYearId]
         );
         
+        if (rows.length === 0) return 0;
+
+        // Solo los grados con número (1°, 2°, … 11°) llevan folio.
+        // Preescolar (Materno, Pre-Jardín, Jardín, Transición) queda sin folio.
+        const numbered   = rows.filter(r => r.grade_num > 0);
+        const unnumbered = rows.filter(r => !(r.grade_num > 0));
+
+        if (unnumbered.length > 0) {
+            await useConnection.query(
+                `UPDATE enrollments SET folio_number = NULL WHERE id IN (?)`,
+                [unnumbered.map(r => r.id)]
+            );
+        }
+
+        if (numbered.length === 0) return 0;
+
         let currentBlock = 0;
         let counter = 1;
-        
-        for (let i = 0; i < rows.length; i++) {
-            let block = 0;
-            const gradeNum = rows[i].grade_num;
-            if (gradeNum >= 1 && gradeNum <= 5) block = 1;
-            else if (gradeNum >= 6 && gradeNum <= 9) block = 2;
-            else if (gradeNum >= 10 && gradeNum <= 11) block = 3;
-            
-            if (block !== currentBlock) {
-                currentBlock = block;
-                counter = 1;
-            }
-            
-            await useConnection.query(
-                `UPDATE enrollments SET folio_number = ? WHERE id = ?`,
-                [counter, rows[i].id]
-            );
+        const cases = [];
+        const ids = [];
+
+        for (const row of numbered) {
+            const block = gradeBlock(row.grade_num);
+            if (block !== currentBlock) { currentBlock = block; counter = 1; }
+            cases.push(`WHEN ${row.id} THEN ${counter}`);
+            ids.push(row.id);
             counter++;
         }
-        
-        return rows.length;
+
+        await useConnection.query(
+            `UPDATE enrollments SET folio_number = CASE id ${cases.join(' ')} END WHERE id IN (?)`,
+            [ids]
+        );
+
+        return numbered.length;
     }
 }
 

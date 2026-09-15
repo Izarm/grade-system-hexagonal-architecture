@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/client';
+import escudo from '../assets/escudo-color.png';
+
+const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 const Login = () => {
   const [activeTab, setActiveTab] = useState('login');
@@ -10,15 +13,19 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [pwTouched, setPwTouched] = useState(false);
 
-  const [regName, setRegName] = useState('');
+  const [regLastName, setRegLastName] = useState('');
+  const [regFirstName, setRegFirstName] = useState('');
   const [regDocument, setRegDocument] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regRole, setRegRole] = useState('docente');
   const [regMessage, setRegMessage] = useState(null);
   const [regLoading, setRegLoading] = useState(false);
+  const [regEmailTouched, setRegEmailTouched] = useState(false);
+  const [regPwTouched, setRegPwTouched] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -48,13 +55,13 @@ const Login = () => {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await api.post('/auth/register', {
-        name: regName, document: regDocument, email: regEmail,
-        phone: regPhone || null, password: regPassword, role: regRole
+        lastName: regLastName.trim(), firstName: regFirstName.trim(), document: regDocument, email: regEmail,
+        phone: regPhone || null, password: regPassword
       }, { headers });
 
       setRegMessage({ type: 'success', text: res.data.message || 'Usuario registrado exitosamente' });
-      setRegName(''); setRegDocument(''); setRegEmail('');
-      setRegPhone(''); setRegPassword(''); setRegRole('docente');
+      setRegLastName(''); setRegFirstName(''); setRegDocument(''); setRegEmail('');
+      setRegPhone(''); setRegPassword('');
       setTimeout(() => { setActiveTab('login'); setRegMessage(null); }, 2000);
     } catch (err) {
       setRegMessage({ type: 'error', text: err.response?.data?.message || 'Error al registrar usuario' });
@@ -64,6 +71,12 @@ const Login = () => {
   };
 
   const inputClass = "w-full px-3.5 py-2.5 border border-gray-200 rounded-md text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white transition";
+  const inputError = "w-full px-3.5 py-2.5 border border-red-300 rounded-md text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-red-400 focus:border-red-400 bg-white transition";
+
+  const emailInvalid = emailTouched && !isValidEmail(email);
+  const pwInvalid = pwTouched && password.length < 1;
+  const regEmailInvalid = regEmailTouched && !isValidEmail(regEmail);
+  const regPwInvalid = regPwTouched && regPassword.length < 6;
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -81,6 +94,20 @@ const Login = () => {
           <p className="text-blue-100/75 text-sm mt-4 leading-relaxed max-w-xs">
             Plataforma institucional para la administración y seguimiento académico.
           </p>
+        </div>
+
+        {/* Escudo — centrado en el espacio libre, alineado con el bloque de texto */}
+        <div className="flex-1 min-h-0 flex items-center py-6">
+          <div className="w-full max-w-[250px] flex justify-center">
+            <img
+              src={escudo}
+              alt="Escudo del Colegio San José de Tarbes"
+              draggable="false"
+              className="w-full max-w-[130px] xl:max-w-[145px] max-h-full object-contain
+                         select-none pointer-events-none
+                         opacity-90 drop-shadow-[0_6px_18px_rgba(2,15,60,0.35)]"
+            />
+          </div>
         </div>
 
         <div className="border-t border-white/15 pt-6">
@@ -133,10 +160,12 @@ const Login = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={inputClass}
+                  onBlur={() => setEmailTouched(true)}
+                  className={emailInvalid ? inputError : inputClass}
                   placeholder="correo@colegio.edu"
                   required
                 />
+                {emailInvalid && <p className="text-xs text-red-500 mt-1">Ingresa un correo válido</p>}
               </div>
 
               <div>
@@ -148,7 +177,8 @@ const Login = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={inputClass + ' pr-10'}
+                    onBlur={() => setPwTouched(true)}
+                    className={(pwInvalid ? inputError : inputClass) + ' pr-10'}
                     placeholder="••••••••"
                     required
                   />
@@ -208,7 +238,8 @@ const Login = () => {
           {activeTab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3">
               {[
-                { label: 'Nombre completo', value: regName, setter: setRegName, type: 'text', placeholder: 'Nombre completo', required: true },
+                { label: 'Apellidos', value: regLastName, setter: setRegLastName, type: 'text', placeholder: 'Ej: Pérez Gómez', required: true },
+                { label: 'Nombres', value: regFirstName, setter: setRegFirstName, type: 'text', placeholder: 'Ej: Juan Carlos', required: true },
                 { label: 'Documento de identidad', value: regDocument, setter: setRegDocument, type: 'text', placeholder: 'Número de documento', required: true },
                 { label: 'Correo electrónico', value: regEmail, setter: setRegEmail, type: 'email', placeholder: 'correo@ejemplo.com', required: true },
                 { label: 'Teléfono (opcional)', value: regPhone, setter: setRegPhone, type: 'tel', placeholder: 'Teléfono de contacto', required: false },
@@ -227,13 +258,7 @@ const Login = () => {
                 </div>
               ))}
 
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Rol</label>
-                <select value={regRole} onChange={(e) => setRegRole(e.target.value)} className={inputClass}>
-                  <option value="docente">Docente</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
+              
 
               <button
                 type="submit"

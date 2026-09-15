@@ -3,155 +3,6 @@ import api from '../../api/client';
 import { useActiveAcademicYear } from '../../hooks/useActiveAcademicYear';
 import { useRefresh } from '../../contexts/RefreshContext';
 
-// ── Auditorias ────────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 50;
-const FIELD_COLORS = {
-    'Nota Normal':      'bg-blue-100 text-blue-700',
-    'Nota Actitudinal': 'bg-green-100 text-green-700',
-    'Faltas':           'bg-orange-100 text-orange-700',
-};
-const ACTION_LABELS = { create: 'Registro', update: 'Cambio' };
-const ACTION_COLORS = { create: 'bg-emerald-100 text-emerald-700', update: 'bg-amber-100 text-amber-700' };
-const normalizeStr = (str) => str?.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') || '';
-
-const AuditPanel = () => {
-    const [rows, setRows]       = useState([]);
-    const [total, setTotal]     = useState(0);
-    const [page, setPage]       = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [teachers, setTeachers]           = useState([]);
-    const [periods, setPeriods]             = useState([]);
-    const [filterTeacher, setFilterTeacher] = useState('');
-    const [filterPeriod, setFilterPeriod]   = useState('');
-    const [search, setSearch]               = useState('');
-    const totalPages = Math.ceil(total / PAGE_SIZE);
-
-    const load = useCallback(async (p = 1) => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ page: p, limit: PAGE_SIZE });
-            if (filterTeacher) params.append('teacherId', filterTeacher);
-            if (filterPeriod)  params.append('periodId', filterPeriod);
-            const res = await api.get(`/audit-logs?${params}`);
-            setRows(res.data.data || []);
-            setTotal(res.data.total || 0);
-            setPage(p);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-    }, [filterTeacher, filterPeriod]);
-
-    useEffect(() => { load(1); }, [load]);
-    useEffect(() => {
-        api.get('/users/teachers').then(r => setTeachers(r.data || [])).catch(() => {});
-        api.get('/periods').then(r => {
-            const data = Array.isArray(r.data) ? r.data : (r.data.data || []);
-            setPeriods(data);
-        }).catch(() => {});
-    }, []);
-
-    const displayed = search
-        ? rows.filter(r =>
-            normalizeStr(r.student_name).includes(normalizeStr(search)) ||
-            normalizeStr(r.teacher_name).includes(normalizeStr(search)) ||
-            normalizeStr(r.subject_name).includes(normalizeStr(search)))
-        : rows;
-
-    const fmt = (iso) => {
-        if (!iso) return '-';
-        return new Date(iso).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' });
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 className="text-[15px] font-semibold text-gray-800">Auditoria de notas</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">Historial de cambios realizados por los docentes</p>
-                    </div>
-                    <span className="text-xs text-gray-400">{total} registro{total !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                        placeholder="Buscar por estudiante, docente o materia..."
-                        className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none w-72" />
-                    <select value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)}
-                        className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none">
-                        <option value="">Todos los docentes</option>
-                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                    <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value)}
-                        className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none">
-                        <option value="">Todos los periodos</option>
-                        {periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <button onClick={() => load(1)}
-                        className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-800 transition">
-                        Filtrar
-                    </button>
-                </div>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                        <tr>
-                            {['Fecha y hora','Docente','Estudiante','Curso','Materia','Periodo','Accion','Campo','Antes','Despues'].map(h => (
-                                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">{h}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {loading ? (
-                            <tr><td colSpan="10" className="px-4 py-8 text-center text-gray-400 text-sm">Cargando...</td></tr>
-                        ) : displayed.length === 0 ? (
-                            <tr><td colSpan="10" className="px-4 py-8 text-center text-gray-400 text-sm">No hay registros de auditoria</td></tr>
-                        ) : displayed.map(row => (
-                            <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
-                                <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">{fmt(row.created_at)}</td>
-                                <td className="px-4 py-3 font-medium text-gray-800">{row.teacher_name}</td>
-                                <td className="px-4 py-3 text-gray-700">{row.student_name}</td>
-                                <td className="px-4 py-3 text-gray-600">{row.group_name}</td>
-                                <td className="px-4 py-3 text-gray-700">{row.subject_name}</td>
-                                <td className="px-4 py-3 text-gray-600 text-xs">{row.period_name}</td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[row.action] || 'bg-gray-100 text-gray-600'}`}>
-                                        {ACTION_LABELS[row.action] || row.action}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${FIELD_COLORS[row.field] || 'bg-gray-100 text-gray-600'}`}>
-                                        {row.field}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                    {row.old_value != null
-                                        ? <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-xs font-mono">{row.old_value}</span>
-                                        : <span className="text-gray-300 text-xs">—</span>}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                    {row.new_value != null
-                                        ? <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-mono">{row.new_value}</span>
-                                        : <span className="text-gray-300 text-xs">—</span>}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 py-4 border-t border-gray-100 bg-gray-50/50">
-                    <button onClick={() => load(page - 1)} disabled={page === 1}
-                        className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 transition">Anterior</button>
-                    <span className="text-xs text-gray-500">Página {page} de {totalPages}</span>
-                    <button onClick={() => load(page + 1)} disabled={page === totalPages}
-                        className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 transition">Siguiente</button>
-                </div>
-            )}
-        </div>
-    );
-};
-
 // ── Consultas (main) ──────────────────────────────────────────────────────────
 
 const Queries = () => {
@@ -175,6 +26,36 @@ const Queries = () => {
     const [studentFilter, setStudentFilter] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(20);
+
+    // Logro (reseña del director) editable por el admin, por período
+    const [reviews, setReviews] = useState({}); // studentId -> texto
+    const [logroStudent, setLogroStudent] = useState(null);
+    const [logroText, setLogroText] = useState('');
+    const [logroSaving, setLogroSaving] = useState(false);
+
+    const openLogro = (student) => {
+        setLogroStudent(student);
+        setLogroText(reviews[student.id] || '');
+    };
+    const saveLogro = async () => {
+        if (!logroStudent) return;
+        setLogroSaving(true);
+        try {
+            await api.post('/head-teacher-reviews', {
+                studentId: logroStudent.id,
+                periodId: selectedPeriod ? parseInt(selectedPeriod) : null,
+                academicYearId: activeYear.id,
+                review: logroText,
+            });
+            setReviews(prev => ({ ...prev, [logroStudent.id]: logroText }));
+            setLogroStudent(null);
+            showNotification('Logro guardado correctamente');
+        } catch (e) {
+            showNotification('Error al guardar el logro', 'error');
+        } finally {
+            setLogroSaving(false);
+        }
+    };
 
     const { activeYear, loading: yearLoading } = useActiveAcademicYear();
 
@@ -201,11 +82,24 @@ const Queries = () => {
     };
 
     const loadGrades = async () => {
+        if (!activeYear) return;
         try {
-            const res = await api.get('/grades');
-            const gradesData = extractData(res.data);
-            const sortedGrades = sortGrades(gradesData);
-            setAllGrades(sortedGrades);
+            const res = await api.get(`/groups?academicYearId=${activeYear.id}`);
+            const groupsData = extractData(res.data);
+            // Construir lista de grados únicos con nombre de grupo
+            const seen = new Set();
+            const gradesList = [];
+            groupsData.forEach(g => {
+                if (!seen.has(g.grade_id)) {
+                    seen.add(g.grade_id);
+                    const displayName = g.name && g.name !== g.grade_name
+                        ? `${g.grade_name} ${g.name}`
+                        : g.grade_name;
+                    gradesList.push({ id: g.grade_id, name: displayName });
+                }
+            });
+            gradesList.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+            setAllGrades(gradesList);
         } catch (error) {
             console.error('Error cargando grados:', error);
             setAllGrades([]);
@@ -301,20 +195,31 @@ const Queries = () => {
             studentsData.sort((a, b) => (a.folio || 0) - (b.folio || 0));
             setStudents(studentsData);
 
+            // Cargar logros (reseñas del director) del período seleccionado
+            try {
+                const revParams = new URLSearchParams({ academicYearId: activeYear.id });
+                if (selectedPeriod) revParams.append('periodId', selectedPeriod);
+                const revRes = await api.get(`/head-teacher-reviews?${revParams}`);
+                const revData = extractData(revRes.data);
+                const revMap = {};
+                revData.forEach(r => { revMap[r.student_id] = r.review; });
+                setReviews(revMap);
+            } catch { setReviews({}); }
+
             const initialGrades = {};
             const initialAbsences = {};
             const allSubjectsForInit = [...regularSubjects, ...electiveSubjects];
             studentsData.forEach(student => {
                 allSubjectsForInit.forEach(subject => {
                     const key = `${student.id}_${subject.id}`;
+                    const n1 = parseNote1(student.notasMap[subject.id]?.normal);
+                    const a1 = parseNote1(student.notasMap[subject.id]?.aptitudinal);
                     initialGrades[key] = {
-                        normal: student.notasMap[subject.id]?.normal !== undefined && student.notasMap[subject.id]?.normal !== null
-                            ? student.notasMap[subject.id].normal : '',
-                        aptitudinal: student.notasMap[subject.id]?.aptitudinal !== undefined && student.notasMap[subject.id]?.aptitudinal !== null
-                            ? student.notasMap[subject.id].aptitudinal : ''
+                        normal: n1 !== null ? String(n1) : '',
+                        aptitudinal: a1 !== null ? String(a1) : ''
                     };
                     initialAbsences[key] = student.absencesMap[subject.id] !== undefined && student.absencesMap[subject.id] !== null
-                        ? student.absencesMap[subject.id] : '';
+                        ? String(student.absencesMap[subject.id]) : '';
                 });
             });
             setGradesData(initialGrades);
@@ -418,11 +323,14 @@ const Queries = () => {
             studentsData.forEach(student => {
                 allSubjects.forEach(subject => {
                     const key = `${student.id}_${subject.id}`;
+                    const n1 = parseNote1(student.notasMap[subject.id]?.normal);
+                    const a1 = parseNote1(student.notasMap[subject.id]?.aptitudinal);
                     initialGrades[key] = {
-                        normal: student.notasMap[subject.id]?.normal ?? '',
-                        aptitudinal: student.notasMap[subject.id]?.aptitudinal ?? ''
+                        normal: n1 !== null ? String(n1) : '',
+                        aptitudinal: a1 !== null ? String(a1) : ''
                     };
-                    initialAbsences[key] = student.absencesMap[subject.id] ?? '';
+                    initialAbsences[key] = student.absencesMap[subject.id] !== undefined && student.absencesMap[subject.id] !== null
+                        ? String(student.absencesMap[subject.id]) : '';
                 });
             });
             setGradesData(initialGrades);
@@ -455,13 +363,36 @@ const Queries = () => {
         }
     };
 
+    // Solo dígitos y un punto decimal, máximo 1 decimal, tope 10
+    const sanitizeNote = (value) => {
+        let v = (value ?? '').toString().replace(',', '.').replace(/[^0-9.]/g, '');
+        const firstDot = v.indexOf('.');
+        if (firstDot !== -1) {
+            const intPart = v.slice(0, firstDot);
+            let dec = v.slice(firstDot + 1).replace(/\./g, '').slice(0, 1);
+            v = intPart + '.' + dec;
+        }
+        if (v !== '' && v !== '.') {
+            const num = parseFloat(v);
+            if (!isNaN(num) && num > 10) v = '10';
+        }
+        return v;
+    };
+
+    const parseNote1 = (v) => {
+        if (v === undefined || v === null || v === '') return null;
+        const n = parseFloat(v);
+        if (isNaN(n)) return null;
+        return Math.round(n * 10) / 10;
+    };
+
     const updateGrade = (studentId, subjectId, field, value) => {
         const key = `${studentId}_${subjectId}`;
         setGradesData(prev => ({
             ...prev,
             [key]: {
                 ...prev[key],
-                [field]: value === '' ? null : parseFloat(value)
+                [field]: sanitizeNote(value)
             }
         }));
         setSaveSuccess(false);
@@ -471,7 +402,7 @@ const Queries = () => {
         const key = `${studentId}_${subjectId}`;
         setAbsencesData(prev => ({
             ...prev,
-            [key]: value === '' ? null : parseInt(value)
+            [key]: (value ?? '').toString().replace(/[^0-9]/g, '')
         }));
         setSaveSuccess(false);
     };
@@ -491,8 +422,8 @@ const Queries = () => {
                 const grade = gradesData[key];
                 const absence = absencesData[key];
                 
-                const normal = grade?.normal !== undefined && grade?.normal !== null && grade?.normal !== '' ? grade.normal : null;
-                const aptitudinal = grade?.aptitudinal !== undefined && grade?.aptitudinal !== null && grade?.aptitudinal !== '' ? grade.aptitudinal : null;
+                const normal = parseNote1(grade?.normal);
+                const aptitudinal = parseNote1(grade?.aptitudinal);
                 const absenceValue = absence !== undefined && absence !== null && absence !== '' ? parseInt(absence) : null;
                 
                 if (normal === null && aptitudinal === null && absenceValue === null) continue;
@@ -562,29 +493,52 @@ const Queries = () => {
     return (
         <div className="max-w-full mx-auto px-6 py-6 overflow-x-auto">
 
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 mb-6">
-                {[{ id: 'consultas', label: 'Consultas' }, { id: 'auditorias', label: 'Auditorias' }].map(t => (
-                    <button key={t.id} onClick={() => setActiveTab(t.id)}
-                        className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                            activeTab === t.id
-                                ? 'border-blue-700 text-blue-700'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}>
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === 'auditorias' && <AuditPanel />}
-
             {activeTab === 'consultas' && <>
             {message && (
                 <div className={`fixed top-5 right-5 z-50 px-4 py-2.5 rounded-lg shadow-lg text-sm ${
-                    message.type === 'success' ? 'bg-emerald-500 text-white' : 
+                    message.type === 'success' ? 'bg-emerald-500 text-white' :
                     message.type === 'error' ? 'bg-rose-500 text-white' : 'bg-blue-500 text-white'
                 }`}>
                     {message.text}
+                </div>
+            )}
+
+            {/* Modal para editar/agregar el logro del estudiante */}
+            {logroStudent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg modal-enter max-h-[90vh] overflow-y-auto">
+                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-[15px] font-semibold text-gray-800">Logro del estudiante</h3>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    {logroStudent.full_name}
+                                    {periods.find(p => p.id.toString() === selectedPeriod)
+                                        ? ` · ${periods.find(p => p.id.toString() === selectedPeriod).name}` : ''}
+                                </p>
+                            </div>
+                            <button onClick={() => setLogroStudent(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                        </div>
+                        <div className="p-6">
+                            <textarea
+                                rows={6}
+                                value={logroText}
+                                onChange={e => setLogroText(e.target.value)}
+                                placeholder="Escribe el logro / reseña del estudiante para este período..."
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                                autoFocus
+                            />
+                            <div className="flex justify-end gap-3 mt-4">
+                                <button onClick={() => setLogroStudent(null)} disabled={logroSaving}
+                                    className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                                    Cancelar
+                                </button>
+                                <button onClick={saveLogro} disabled={logroSaving}
+                                    className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-800 text-white rounded-lg transition disabled:opacity-50 font-medium">
+                                    {logroSaving ? 'Guardando...' : 'Guardar logro'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -685,6 +639,7 @@ const Queries = () => {
                                         <th rowSpan="2" className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-100">Estudiante</th>
                                         <th rowSpan="2" className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-100">Código</th>
                                         {!selectedGrade && <th rowSpan="2" className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-100">Grado</th>}
+                                        <th rowSpan="2" className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-r border-gray-100">Logro</th>
                                         {subjects.map(subject => (
                                             <th key={subject.id} colSpan="3" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border-l border-gray-100">
                                                 {subject.subject_name || subject.subjectName}
@@ -708,24 +663,31 @@ const Queries = () => {
                                             <td className="px-3 py-2 text-gray-700 border-r border-gray-100">{student.full_name}</td>
                                             <td className="px-3 py-2 text-gray-500 border-r border-gray-100">{student.student_code}</td>
                                             {!selectedGrade && <td className="px-3 py-2 text-gray-500 text-xs border-r border-gray-100">{student.grade_name || '-'}</td>}
+                                            <td className="px-2 py-2 text-center border-r border-gray-100">
+                                                <button type="button" onClick={() => openLogro(student)}
+                                                    title={reviews[student.id] ? 'Editar logro' : 'Agregar logro'}
+                                                    className={`text-xs font-medium px-2 py-1 rounded-lg transition ${reviews[student.id] ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                                                    {reviews[student.id] ? 'Ver / editar' : 'Agregar'}
+                                                </button>
+                                            </td>
                                             {subjects.map(subject => {
                                                 const key = `${student.id}_${subject.id}`;
                                                 return (
                                                     <Fragment key={subject.id}>
                                                         <td className="px-1 py-2 text-center border-l border-gray-100">
-                                                            <input type="number" step="0.01" min="0" max="10"
+                                                            <input type="text" inputMode="decimal"
                                                                 value={gradesData[key]?.normal ?? ''}
                                                                 onChange={e => updateGrade(student.id, subject.id, 'normal', e.target.value)}
                                                                 className="w-14 px-1 py-1 border border-blue-100 rounded text-center text-xs focus:ring-1 focus:ring-blue-400 outline-none" />
                                                         </td>
                                                         <td className="px-1 py-2 text-center">
-                                                            <input type="number" step="0.01" min="0" max="10"
+                                                            <input type="text" inputMode="decimal"
                                                                 value={gradesData[key]?.aptitudinal ?? ''}
                                                                 onChange={e => updateGrade(student.id, subject.id, 'aptitudinal', e.target.value)}
                                                                 className="w-14 px-1 py-1 border border-emerald-100 rounded text-center text-xs focus:ring-1 focus:ring-emerald-400 outline-none" />
                                                         </td>
                                                         <td className="px-1 py-2 text-center">
-                                                            <input type="number" min="0"
+                                                            <input type="text" inputMode="numeric"
                                                                 value={absencesData[key] ?? ''}
                                                                 onChange={e => updateAbsences(student.id, subject.id, e.target.value)}
                                                                 className="w-12 px-1 py-1 border border-orange-100 rounded text-center text-xs focus:ring-1 focus:ring-orange-300 outline-none" />
@@ -782,7 +744,7 @@ const Queries = () => {
                                                 const key = `${student.id}_${subject.id}`;
                                                 return (
                                                     <td key={subject.id} className="px-2 py-2 text-center border-l border-purple-100">
-                                                        <input type="number" step="0.01" min="0" max="10"
+                                                        <input type="text" inputMode="decimal"
                                                             value={gradesData[key]?.normal ?? ''}
                                                             onChange={e => updateGrade(student.id, subject.id, 'normal', e.target.value)}
                                                             className="w-16 px-2 py-1 border border-purple-200 rounded text-center text-xs focus:ring-1 focus:ring-purple-400 outline-none" />

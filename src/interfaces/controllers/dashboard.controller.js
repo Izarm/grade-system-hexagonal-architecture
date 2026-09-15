@@ -1,19 +1,19 @@
-const pool = require('../../infrastructure/database/mysql');
+﻿const pool = require('../../infrastructure/database/mysql');
 
 exports.getDashboardStats = async (req, res) => {
     try {
         const userRole = req.user.role;
         const userId = req.user.id;
         
-        // 1. Obtener año activo
+        // 1. Obtener ano activo
         const [activeYear] = await pool.query(
             `SELECT id, name FROM academic_years WHERE active = 1 AND deleted_at IS NULL LIMIT 1`
         );
         
         const academicYearId = activeYear[0]?.id || null;
-        const academicYearName = activeYear[0]?.name || 'No hay año activo';
+        const academicYearName = activeYear[0]?.name || 'No hay ano activo';
         
-        // 2. Estadísticas generales
+        // 2. Estadisticas generales
         const [studentCount] = await pool.query(
             `SELECT COUNT(*) as total FROM students WHERE deleted_at IS NULL`
         );
@@ -26,11 +26,18 @@ exports.getDashboardStats = async (req, res) => {
             `SELECT COUNT(*) as total FROM subjects WHERE deleted_at IS NULL`
         );
         
+        // Contar grupos activos con matrícula en el año activo
         const [gradeCount] = await pool.query(
-            `SELECT COUNT(*) as total FROM grades WHERE deleted_at IS NULL`
+            academicYearId
+                ? `SELECT COUNT(DISTINCT grp.id) as total
+                   FROM \`groups\` grp
+                   JOIN enrollments e ON e.group_id = grp.id
+                   WHERE e.academic_year_id = ? AND e.deleted_at IS NULL AND grp.deleted_at IS NULL`
+                : `SELECT COUNT(*) as total FROM \`groups\` WHERE deleted_at IS NULL`,
+            academicYearId ? [academicYearId] : []
         );
         
-        // 3. Estadísticas de matrículas (año activo)
+        // 3. Estadisticas de matriculas (ano activo)
         let activeEnrollments = 0;
         let studentsByGrade = [];
         
@@ -56,7 +63,7 @@ exports.getDashboardStats = async (req, res) => {
             studentsByGrade = gradeDistribution || [];
         }
         
-        // 4. Estadísticas de rendimiento (año activo)
+        // 4. Estadisticas de rendimiento (ano activo)
         let averageScore = null;
         let highPerformance = 0;
         let atRisk = 0;
@@ -80,7 +87,7 @@ exports.getDashboardStats = async (req, res) => {
             );
             averageScore = avgResult[0]?.avg_score ? parseFloat(avgResult[0].avg_score).toFixed(2) : null;
             
-            // Estudiantes de alto rendimiento (promedio >= 7.8 — desempeño Alto o Superior)
+            // Estudiantes de alto rendimiento (promedio >= 7.8 â€” desempeno Alto o Superior)
             const [highResult] = await pool.query(
                 `SELECT COUNT(DISTINCT e.student_id) as total
                  FROM grade_records gr
@@ -92,7 +99,7 @@ exports.getDashboardStats = async (req, res) => {
             );
             highPerformance = highResult[0]?.total || 0;
 
-            // Estudiantes en riesgo (promedio < 6.5 — desempeño Bajo)
+            // Estudiantes en riesgo (promedio < 6.5 â€” desempeno Bajo)
             const [riskResult] = await pool.query(
                 `SELECT COUNT(DISTINCT e.student_id) as total
                  FROM grade_records gr
@@ -118,7 +125,7 @@ exports.getDashboardStats = async (req, res) => {
             );
             topStudents = topStudentsResult || [];
             
-            // Materias con más bajo rendimiento
+            // Materias con mas bajo rendimiento
             const [failingResult] = await pool.query(
                 `SELECT sub.name as subject_name, AVG(gr.average) as avg_score
                  FROM grade_records gr
@@ -133,7 +140,7 @@ exports.getDashboardStats = async (req, res) => {
             failingSubjects = failingResult || [];
         }
         
-        // 5. Estadísticas de faltas
+        // 5. Estadisticas de faltas
         let totalAbsences = 0;
         let studentMostAbsences = null;
         
@@ -169,7 +176,7 @@ exports.getDashboardStats = async (req, res) => {
             alerts.push({
                 type: 'warning',
                 title: 'Estudiantes en riesgo',
-                message: `${atRisk} estudiante(s) tienen promedio menor a 6.5 (Desempeño Bajo)`,
+                message: `${atRisk} estudiante(s) tienen promedio menor a 6.5 (Desempeno Bajo)`,
                 severity: 'high'
             });
         }
@@ -197,7 +204,7 @@ exports.getDashboardStats = async (req, res) => {
             });
         }
 
-        // Alertas de períodos (próximos a vencer y vencidos)
+        // Alertas de periodos (proximos a vencer y vencidos)
         if (academicYearId) {
             const [periodAlerts] = await pool.query(
                 `SELECT id, name, \`order\`, start_date, end_date, status
@@ -220,19 +227,19 @@ exports.getDashboardStats = async (req, res) => {
 
                 if (period.status === 'open') {
                     if (today > endDate) {
-                        // Período vencido y aún abierto
+                        // Periodo vencido y aun abierto
                         alerts.push({
                             type: 'danger',
-                            title: `⚠ Período ${period.order} vencido`,
-                            message: `"${period.name}" venció el ${endDate.toLocaleDateString('es-CO')}. Debes cerrarlo y abrir el siguiente.`,
+                            title: `Periodo ${period.order} vencido`,
+                            message: `"${period.name}" vencio el ${endDate.toLocaleDateString('es-CO')}. Debes cerrarlo y abrir el siguiente.`,
                             severity: 'high'
                         });
                     } else if ((endDate - today) <= TWO_WEEKS) {
                         // Faltan 2 semanas o menos
                         alerts.push({
                             type: 'warning',
-                            title: `📋 Período ${period.order} próximo a cerrar`,
-                            message: `"${period.name}" cierra el ${endDate.toLocaleDateString('es-CO')} (${daysToEnd} día${daysToEnd !== 1 ? 's' : ''}). Es momento de subir las notas.`,
+                            title: `Periodo ${period.order} proximo a cerrar`,
+                            message: `"${period.name}" cierra el ${endDate.toLocaleDateString('es-CO')} (${daysToEnd} dia${daysToEnd !== 1 ? 's' : ''}). Es momento de subir las notas.`,
                             severity: daysToEnd <= 3 ? 'high' : 'medium'
                         });
                     }
@@ -240,7 +247,7 @@ exports.getDashboardStats = async (req, res) => {
             }
         }
 
-        // 7. Matrículas nuevas (comparativa)
+        // 7. Matriculas nuevas (comparativa)
         let newEnrollments = 0;
         let previousEnrollments = 0;
         let growthRate = 0;
@@ -269,7 +276,7 @@ exports.getDashboardStats = async (req, res) => {
             }
         }
         
-        // 8. Porcentaje de ocupación por grado
+        // 8. Porcentaje de ocupacion por grado
         const gradeOccupancy = (studentsByGrade || []).map(grade => {
             const capacity = 40;
             const occupancy = Math.round((grade.student_count / capacity) * 100);
@@ -285,8 +292,8 @@ exports.getDashboardStats = async (req, res) => {
         let performanceByGrade = [];
         if (academicYearId) {
             const [gradePerformance] = await pool.query(
-                `SELECT 
-                    g.name as grade_name,
+                `SELECT
+                    CONCAT(g.name, ' ', grp.name) as grade_name,
                     COUNT(DISTINCT e.student_id) as student_count,
                     COALESCE(AVG(CAST(gr.normal_note AS DECIMAL(4,2))), 0) as avg_score,
                     COALESCE(SUM(CASE WHEN gr.average >= 7.8 THEN 1 ELSE 0 END), 0) as high_performance,
@@ -295,10 +302,10 @@ exports.getDashboardStats = async (req, res) => {
                  JOIN enrollments e ON gr.enrollment_id = e.id
                  JOIN \`groups\` grp ON e.group_id = grp.id
                  JOIN grades g ON grp.grade_id = g.id
-                 WHERE e.academic_year_id = ? 
+                 WHERE e.academic_year_id = ?
                    AND gr.deleted_at IS NULL
                    AND gr.normal_note IS NOT NULL
-                 GROUP BY g.id, g.name
+                 GROUP BY grp.id, g.name, grp.name
                  ORDER BY avg_score DESC`,
                 [academicYearId]
             );
@@ -348,7 +355,7 @@ exports.getDashboardStats = async (req, res) => {
         console.error('Error en getDashboardStats:', error);
         return res.status(500).json({ 
             success: false, 
-            message: 'Error al obtener estadísticas del dashboard',
+            message: 'Error al obtener estadisticas del dashboard',
             error: error.message 
         });
     }

@@ -1,7 +1,34 @@
-node_modules/
+# ---- Credenciales ----
+# NUNCA subir .env: tiene la contraseña de MySQL, el JWT_SECRET
+# y la clave del correo. Usa .env.example como plantilla.
 .env
 .env.local
+.env.*.local
+
+# ---- Dependencias ----
+node_modules/
+frontend-react/node_modules/
+
+# ---- Compilado del frontend ----
+frontend-react/dist/
+
+# ---- Respaldos de base de datos ----
+*.sql.bak
+respaldo_*.sql
+*.generado.sql
+
+# ---- Registros y temporales ----
 *.log
-dist/
-build/
+npm-debug.log*
+.tmp/
+tmp/
+
+# ---- Editor y sistema operativo ----
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
 .DS_Store
+
+# ---- Volcados con datos reales de estudiantes (NO subir) ----
+datos-iniciales.sql

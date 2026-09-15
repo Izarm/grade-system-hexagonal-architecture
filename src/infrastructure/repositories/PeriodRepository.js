@@ -3,6 +3,19 @@ const pool = require('../database/mysql');
 class PeriodRepository {
     async create(data) {
         const { academicYearId, name, order, startDate, endDate, status, percentage } = data;
+
+        if (startDate && endDate) {
+            const [overlap] = await pool.query(
+                `SELECT id FROM periods
+                 WHERE academic_year_id = ? AND deleted_at IS NULL
+                   AND start_date < ? AND end_date > ?`,
+                [academicYearId, endDate, startDate]
+            );
+            if (overlap.length > 0) {
+                throw new Error('Las fechas del período se solapan con otro período existente');
+            }
+        }
+
         const [result] = await pool.query(
             `INSERT INTO periods (academic_year_id, name, \`order\`, start_date, end_date, status, percentage)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -13,6 +26,18 @@ class PeriodRepository {
 
     async update(id, data) {
         const { name, order, startDate, endDate, status, percentage } = data;
+        if (startDate && endDate) {
+            const [overlap] = await pool.query(
+                `SELECT id FROM periods
+                 WHERE academic_year_id = (SELECT academic_year_id FROM periods WHERE id = ?)
+                   AND id != ? AND deleted_at IS NULL
+                   AND start_date < ? AND end_date > ?`,
+                [id, id, endDate, startDate]
+            );
+            if (overlap.length > 0) {
+                throw new Error('Las fechas del período se solapan con otro período existente');
+            }
+        }
         const [result] = await pool.query(
             `UPDATE periods
              SET name = ?, \`order\` = ?, start_date = ?, end_date = ?, status = ?, percentage = ?

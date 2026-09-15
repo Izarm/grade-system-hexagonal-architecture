@@ -364,3 +364,4 @@ CREATE TABLE `student_elective_enrollments` (
 -- Cambia esta contrasena inmediatamente despues del primer inicio de sesion.
 INSERT INTO `users` (`name`, `document`, `email`, `phone`, `password`, `role`, `status`) VALUES
 ('Administrador', '1', 'admin@example.com', NULL, '$2b$10$LHMFke4IazI0/9vivFCk6Obtuok12axs53EqarpT9naJbXw7JL4p6', 'admin', 'active');
+

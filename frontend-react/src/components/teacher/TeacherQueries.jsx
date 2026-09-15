@@ -178,7 +178,7 @@ const TeacherQueries = () => {
                 )}
 
                 {students.length > 0 && (() => {
-                    const fmt = (v) => v !== null && v !== undefined ? parseFloat(v).toFixed(2) : '-';
+                    const fmt = (v) => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(1) : '-';
 
                     const renderRow = (s, idx) => {
                         const normal = s.grade?.normal_note ?? null;
@@ -197,15 +197,16 @@ const TeacherQueries = () => {
                     };
 
                     if (isElective) {
-                        const gradeNames = [...new Set(students.map(s => s.grade_name || 'Sin grado'))].sort((a, b) => {
+                        const groupKey = (s) => `${s.grade_name || 'Sin grado'}${s.group_name ? ' ' + s.group_name : ''}`;
+                        const gradeNames = [...new Set(students.map(groupKey))].sort((a, b) => {
                             const nA = parseInt(a) || 999;
                             const nB = parseInt(b) || 999;
-                            return nA !== nB ? nA - nB : a.localeCompare(b);
+                            return nA !== nB ? nA - nB : a.localeCompare(b, 'es');
                         });
                         return (
                             <div className="mt-6 space-y-6">
                                 {gradeNames.map(gradeName => {
-                                    const gradeStudents = students.filter(s => (s.grade_name || 'Sin grado') === gradeName);
+                                    const gradeStudents = students.filter(s => groupKey(s) === gradeName);
                                     return (
                                         <div key={gradeName}>
                                             <div className="flex items-center gap-2 mb-2">

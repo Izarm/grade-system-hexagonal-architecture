@@ -17,6 +17,72 @@ const list = new ListAcademicYears(repo);
 const get = new GetAcademicYear(repo);
 const listPaginated = new ListAcademicYearsPaginated(repo);
 
+// Copia la estructura académica (grados y sus grupos/secciones) de un año a
+// otro. Necesario porque los grados pertenecen a un año lectivo concreto.
+exports.cloneStructure = async (req, res) => {
+    const pool = require('../../infrastructure/database/mysql');
+    const connection = await pool.getConnection();
+    try {
+        const toYearId = parseInt(req.params.id);
+        const { fromYearId } = req.body;
+        if (!fromYearId) return res.status(400).json({ message: 'Falta fromYearId' });
+        if (parseInt(fromYearId) === toYearId) {
+            return res.status(400).json({ message: 'El año origen y destino deben ser distintos' });
+        }
+
+        await connection.beginTransaction();
+
+        const [[existing]] = await connection.query(
+            'SELECT COUNT(*) AS n FROM grades WHERE academic_year_id = ? AND deleted_at IS NULL',
+            [toYearId]
+        );
+        if (existing.n > 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: 'El año destino ya tiene grados creados' });
+        }
+
+        const [grades] = await connection.query(
+            `SELECT id, name, full_name, is_elective, takes_grades, head_teacher_id
+             FROM grades WHERE academic_year_id = ? AND deleted_at IS NULL`,
+            [fromYearId]
+        );
+        if (grades.length === 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: 'El año origen no tiene grados' });
+        }
+
+        let gradesCreated = 0, groupsCreated = 0;
+        for (const g of grades) {
+            const [r] = await connection.query(
+                `INSERT INTO grades (name, full_name, is_elective, takes_grades, head_teacher_id, academic_year_id)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [g.name, g.full_name, g.is_elective, g.takes_grades, g.head_teacher_id, toYearId]
+            );
+            gradesCreated++;
+
+            const [groups] = await connection.query(
+                'SELECT name, head_teacher_id FROM `groups` WHERE grade_id = ? AND deleted_at IS NULL',
+                [g.id]
+            );
+            for (const grp of groups) {
+                await connection.query(
+                    'INSERT INTO `groups` (grade_id, name, head_teacher_id) VALUES (?, ?, ?)',
+                    [r.insertId, grp.name, grp.head_teacher_id]
+                );
+                groupsCreated++;
+            }
+        }
+
+        await connection.commit();
+        res.json({ message: `Estructura copiada: ${gradesCreated} grado(s) y ${groupsCreated} grupo(s)`, gradesCreated, groupsCreated });
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ message: error.message });
+    } finally {
+        connection.release();
+    }
+};
+
 exports.create = async (req, res) => {
     try {
         const { name, startDate, endDate, active, periods } = req.body;
@@ -39,7 +105,7 @@ exports.create = async (req, res) => {
 
         res.status(201).json(year);
     } catch (error) {
-        console.error('Error en create academicYear:', error);
+
         res.status(400).json({ message: error.message });
     }
 };
@@ -87,7 +153,7 @@ exports.update = async (req, res) => {
 
         res.json(updatedYear);
     } catch (error) {
-        console.error('Error en update academicYear:', error);
+
         res.status(400).json({ message: error.message });
     }
 };
@@ -98,7 +164,7 @@ exports.delete = async (req, res) => {
         await del.execute(req.params.id);
         res.status(204).send();
     } catch (error) {
-        console.error('Error en delete academicYear:', error);
+
         res.status(400).json({ message: error.message });
     }
 };
@@ -110,7 +176,7 @@ exports.list = async (req, res) => {
         const result = await listPaginated.execute(page, limit);
         res.json(result);
     } catch (error) {
-        console.error('Error en list academicYears:', error);
+
         res.status(500).json({ message: error.message });
     }
 };
@@ -122,7 +188,7 @@ exports.listPaginated = async (req, res) => {
         const result = await listPaginated.execute(page, limit);
         res.json(result);
     } catch (error) {
-        console.error('Error en listPaginated academicYears:', error);
+
         res.status(500).json({ message: error.message });
     }
 };
@@ -132,7 +198,7 @@ exports.getById = async (req, res) => {
         const year = await get.execute(req.params.id);
         res.json(year);
     } catch (error) {
-        console.error('Error en getById academicYear:', error);
+
         res.status(404).json({ message: error.message });
     }
 };
@@ -153,7 +219,7 @@ exports.getActive = async (req, res) => {
         
         res.json(response);
     } catch (error) {
-        console.error('Error en getActive:', error);
+
         res.status(500).json({ message: error.message });
     }
 };
@@ -167,7 +233,7 @@ exports.closeYear = async (req, res) => {
         const result = await closeYearUseCase.execute(id, userId);
         res.json(result);
     } catch (error) {
-        console.error('Error en closeYear:', error);
+
         res.status(400).json({ message: error.message });
     }
 };
@@ -180,7 +246,7 @@ exports.reopenYear = async (req, res) => {
         const result = await repo.reopenYear(id, userId);
         res.json(result);
     } catch (error) {
-        console.error('Error en reopenYear:', error);
+
         res.status(400).json({ message: error.message });
     }
 };

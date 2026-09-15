@@ -6,6 +6,7 @@ class DeleteSubject {
     async execute(id) {
         const existing = await this.subjectRepository.findById(id);
         if (!existing) throw new Error('Asignatura no encontrada');
+        await this.subjectRepository.deleteAssignmentsBySubject(id);
         const deleted = await this.subjectRepository.delete(id);
         if (!deleted) throw new Error('No se pudo eliminar');
         return true;

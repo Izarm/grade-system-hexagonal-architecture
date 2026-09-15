@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/client';
 import { useActiveAcademicYear } from '../../hooks/useActiveAcademicYear';
 import { useRefresh } from '../../contexts/RefreshContext';
@@ -18,8 +18,21 @@ const GradeRegistration = () => {
     const [isElective, setIsElective] = useState(false);
     const [gradeSearch, setGradeSearch] = useState('');
     const [selectedGradeFilter, setSelectedGradeFilter] = useState('');
+    const hasUnsavedChanges = useRef(false);
+    const inputRefs = useRef({});
 
     const { activeYear, loading: yearLoading } = useActiveAcademicYear();
+
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (hasUnsavedChanges.current) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
 
     const extractData = (response) => {
         if (!response) return [];
@@ -94,11 +107,13 @@ const GradeRegistration = () => {
             if (res.data.students && Array.isArray(res.data.students)) {
                 res.data.students.forEach(s => {
                     if (s.grade) {
+                        const n1 = parseNote1(s.grade.normal_note);
+                        const a1 = parseNote1(s.grade.aptitudinal_note);
                         gradesData[s.id] = {
-                            normal: s.grade.normal_note !== null ? s.grade.normal_note : '',
-                            aptitudinal: s.grade.aptitudinal_note !== null ? s.grade.aptitudinal_note : ''
+                            normal: n1 !== null ? String(n1) : '',
+                            aptitudinal: a1 !== null ? String(a1) : ''
                         };
-                        absencesData[s.id] = s.grade.absences !== null && s.grade.absences !== undefined ? s.grade.absences : '';
+                        absencesData[s.id] = s.grade.absences !== null && s.grade.absences !== undefined ? String(s.grade.absences) : '';
                     } else {
                         gradesData[s.id] = { normal: '', aptitudinal: '' };
                         absencesData[s.id] = '';
@@ -128,35 +143,123 @@ const GradeRegistration = () => {
         }
     }, [filters.assignmentId, filters.periodId, refreshKey]);
 
+    // Solo dígitos y un punto decimal, máximo 1 decimal, tope 10. Nada de - + e , etc.
+    const sanitizeNote = (value) => {
+        let v = (value ?? '').toString().replace(',', '.').replace(/[^0-9.]/g, '');
+        const firstDot = v.indexOf('.');
+        if (firstDot !== -1) {
+            const intPart = v.slice(0, firstDot);
+            let dec = v.slice(firstDot + 1).replace(/\./g, '').slice(0, 1);
+            v = intPart + '.' + dec;
+        }
+        if (v !== '' && v !== '.') {
+            const num = parseFloat(v);
+            if (!isNaN(num) && num > 10) v = '10';
+        }
+        return v;
+    };
+
+    // Convierte a número con un decimal para guardar/enviar
+    const parseNote1 = (v) => {
+        if (v === undefined || v === null || v === '') return null;
+        const n = parseFloat(v);
+        if (isNaN(n)) return null;
+        return Math.round(n * 10) / 10;
+    };
+
     const updateNormalNote = (studentId, value) => {
-        const num = value === '' ? null : parseFloat(value);
+        hasUnsavedChanges.current = true;
+        const clean = sanitizeNote(value);
         setGrades(prev => ({
             ...prev,
-            [studentId]: {
-                ...prev[studentId],
-                normal: (num !== null && !isNaN(num)) ? num : null
-            }
+            [studentId]: { ...prev[studentId], normal: clean }
         }));
     };
 
     const updateAptitudinal = (studentId, value) => {
         if (isElective) return;
-        const num = value === '' ? null : parseFloat(value);
+        hasUnsavedChanges.current = true;
+        const clean = sanitizeNote(value);
         setGrades(prev => ({
             ...prev,
-            [studentId]: {
-                ...prev[studentId],
-                aptitudinal: (num !== null && !isNaN(num)) ? num : null
-            }
+            [studentId]: { ...prev[studentId], aptitudinal: clean }
         }));
     };
 
     const updateAbsences = (studentId, value) => {
-        const num = value === '' ? null : parseInt(value);
+        // Solo enteros positivos
+        const clean = (value ?? '').toString().replace(/[^0-9]/g, '');
         setAbsences(prev => ({
             ...prev,
-            [studentId]: (num !== null && !isNaN(num)) ? num : null
+            [studentId]: clean
         }));
+    };
+
+    // Columnas navegables según el tipo de materia
+    const getColumns = () => isElective ? ['normal', 'absences'] : ['normal', 'aptitudinal', 'absences'];
+
+    const focusCell = (studentId, col) => {
+        const el = inputRefs.current[`${studentId}:${col}`];
+        if (el) {
+            el.focus();
+            if (typeof el.select === 'function') el.select();
+        }
+    };
+
+    // Enter baja al mismo campo del siguiente estudiante
+    const handleKeyDown = (e, orderedStudents, studentId, col) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const idx = orderedStudents.findIndex(s => s.id === studentId);
+            const next = orderedStudents[idx + 1];
+            if (next) focusCell(next.id, col);
+        }
+    };
+
+    // Aplica un valor a la estructura mutable de grades/absences
+    const applyCell = (gObj, aObj, studentId, col, raw) => {
+        if (col === 'absences') {
+            aObj[studentId] = (raw ?? '').toString().replace(/[^0-9]/g, '');
+        } else {
+            const base = gObj[studentId] || { normal: '', aptitudinal: '' };
+            gObj[studentId] = { ...base, [col]: sanitizeNote(raw) };
+        }
+    };
+
+    // Pegar varias filas/columnas desde Excel
+    const handlePaste = (e, orderedStudents, studentId, startCol) => {
+        const text = e.clipboardData?.getData('text');
+        if (!text) return;
+        const rows = text.replace(/\r/g, '').split('\n');
+        // quitar última fila vacía típica de Excel
+        if (rows.length > 1 && rows[rows.length - 1] === '') rows.pop();
+        // Si es un solo valor sin tabs, dejar el pegado normal del navegador
+        if (rows.length === 1 && !rows[0].includes('\t')) return;
+        e.preventDefault();
+        if (!periodOpen) return;
+
+        const cols = getColumns();
+        const startColIdx = cols.indexOf(startCol);
+        const startRowIdx = orderedStudents.findIndex(s => s.id === studentId);
+
+        const gObj = { ...grades };
+        const aObj = { ...absences };
+
+        rows.forEach((row, ri) => {
+            const target = orderedStudents[startRowIdx + ri];
+            if (!target) return;
+            const cells = row.split('\t');
+            cells.forEach((cell, ci) => {
+                const colName = cols[startColIdx + ci];
+                if (!colName) return;
+                applyCell(gObj, aObj, target.id, colName, cell);
+            });
+        });
+
+        setGrades(gObj);
+        setAbsences(aObj);
+        hasUnsavedChanges.current = true;
+        showNotification(`${rows.length} fila${rows.length !== 1 ? 's' : ''} pegada${rows.length !== 1 ? 's' : ''} desde Excel`);
     };
 
     const saveAllGrades = async () => {
@@ -175,8 +278,8 @@ const GradeRegistration = () => {
             const grade = grades[student.id];
             const absence = absences[student.id];
             if (!grade) continue;
-            const normal = grade.normal !== undefined && grade.normal !== null && grade.normal !== '' ? grade.normal : null;
-            const aptitudinal = isElective ? null : (grade.aptitudinal !== undefined && grade.aptitudinal !== null && grade.aptitudinal !== '' ? grade.aptitudinal : null);
+            const normal = parseNote1(grade.normal);
+            const aptitudinal = isElective ? null : parseNote1(grade.aptitudinal);
             const absenceValue = absence !== undefined && absence !== null && absence !== '' ? parseInt(absence) : null;
             
             if (normal === null && aptitudinal === null && absenceValue === null) continue;
@@ -197,6 +300,7 @@ const GradeRegistration = () => {
             }
         }
         if (savedCount > 0) {
+            hasUnsavedChanges.current = false;
             showNotification(`${savedCount} registro${savedCount !== 1 ? 's' : ''} guardado${savedCount !== 1 ? 's' : ''} correctamente`);
             await loadStudentsAndGrades();
         } else if (errorCount > 0) {
@@ -263,14 +367,25 @@ const GradeRegistration = () => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Período</label>
-                    <select
-                        value={filters.periodId}
-                        onChange={(e) => setFilters({ ...filters, periodId: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none"
-                    >
-                        <option value="">Seleccione período</option>
-                        {periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={filters.periodId}
+                            onChange={(e) => setFilters({ ...filters, periodId: e.target.value })}
+                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="">Seleccione período</option>
+                            {periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        {filters.periodId && (
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                                periodOpen
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                            }`}>
+                                {periodOpen ? '● Abierto' : '● Cerrado'}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -281,13 +396,14 @@ const GradeRegistration = () => {
             )}
 
             {!loading && students.length > 0 && (() => {
-                // Para electivas: agrupar por grado y aplicar filtro
+                // Para electivas: agrupar por grado + sección (ej: "1° A", "1° B")
+                const groupKey = (s) => `${s.grade_name || 'Sin grado'}${s.group_name ? ' ' + s.group_name : ''}`;
                 const allGradeNames = isElective
-                    ? [...new Set(students.map(s => s.grade_name || 'Sin grado'))].sort((a, b) => {
+                    ? [...new Set(students.map(groupKey))].sort((a, b) => {
                         const numA = parseInt(a) || 999;
                         const numB = parseInt(b) || 999;
                         if (numA !== numB) return numA - numB;
-                        return a.localeCompare(b);
+                        return a.localeCompare(b, 'es');
                     })
                     : [];
 
@@ -296,8 +412,16 @@ const GradeRegistration = () => {
                 );
 
                 const visibleStudents = isElective && selectedGradeFilter
-                    ? students.filter(s => (s.grade_name || 'Sin grado') === selectedGradeFilter)
+                    ? students.filter(s => groupKey(s) === selectedGradeFilter)
                     : students;
+
+                // Grados a mostrar (electivas) y orden global de navegación
+                const gradesToShow = selectedGradeFilter
+                    ? [selectedGradeFilter]
+                    : filteredGradeNames.length > 0 ? filteredGradeNames : allGradeNames;
+                const orderedStudents = isElective
+                    ? gradesToShow.flatMap(gn => students.filter(s => groupKey(s) === gn))
+                    : visibleStudents;
 
                 const renderStudentRow = (student, idx) => {
                     const normalValue = grades[student.id]?.normal !== undefined && grades[student.id]?.normal !== null ? grades[student.id].normal : '';
@@ -310,22 +434,31 @@ const GradeRegistration = () => {
                             <td className="px-4 py-3 text-sm">{student.student_code || '-'}</td>
                             {!isElective && <td className="px-4 py-3 text-sm">{student.grade_name || '-'}</td>}
                             <td className="px-4 py-3">
-                                <input type="number" step="0.01" min="0" max="10" value={normalValue}
+                                <input type="text" inputMode="decimal" value={normalValue}
+                                    ref={(el) => { inputRefs.current[`${student.id}:normal`] = el; }}
                                     onChange={(e) => updateNormalNote(student.id, e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, orderedStudents, student.id, 'normal')}
+                                    onPaste={(e) => handlePaste(e, orderedStudents, student.id, 'normal')}
                                     disabled={!periodOpen}
                                     className="w-24 px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500 outline-none" />
                             </td>
                             {!isElective && (
                                 <td className="px-4 py-3">
-                                    <input type="number" step="0.01" min="0" max="10" value={aptitudinalValue}
+                                    <input type="text" inputMode="decimal" value={aptitudinalValue}
+                                        ref={(el) => { inputRefs.current[`${student.id}:aptitudinal`] = el; }}
                                         onChange={(e) => updateAptitudinal(student.id, e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, orderedStudents, student.id, 'aptitudinal')}
+                                        onPaste={(e) => handlePaste(e, orderedStudents, student.id, 'aptitudinal')}
                                         disabled={!periodOpen}
                                         className="w-24 px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500 outline-none" />
                                 </td>
                             )}
                             <td className="px-4 py-3">
-                                <input type="number" step="1" min="0" value={absenceValue}
+                                <input type="text" inputMode="numeric" value={absenceValue}
+                                    ref={(el) => { inputRefs.current[`${student.id}:absences`] = el; }}
                                     onChange={(e) => updateAbsences(student.id, e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, orderedStudents, student.id, 'absences')}
+                                    onPaste={(e) => handlePaste(e, orderedStudents, student.id, 'absences')}
                                     disabled={!periodOpen}
                                     className="w-20 px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500 outline-none" />
                             </td>
@@ -336,8 +469,12 @@ const GradeRegistration = () => {
                 return (
                     <div>
                         {!periodOpen && (
-                            <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4">
-                                ADVERTENCIA: Este período está cerrado. No se pueden modificar notas.
+                            <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
+                                <span className="text-lg font-bold">!</span>
+                                <div>
+                                    <p className="font-semibold text-sm">Período cerrado — solo lectura</p>
+                                    <p className="text-xs text-red-600">No se pueden registrar ni modificar notas en este período. Contacta al administrador para reabrirlo.</p>
+                                </div>
                             </div>
                         )}
 
@@ -384,12 +521,8 @@ const GradeRegistration = () => {
                             {isElective ? (
                                 // Vista agrupada por grado para electivas
                                 (() => {
-                                    const gradesToShow = selectedGradeFilter
-                                        ? [selectedGradeFilter]
-                                        : filteredGradeNames.length > 0 ? filteredGradeNames : allGradeNames;
-
                                     return gradesToShow.map(gradeName => {
-                                        const gradeStudents = students.filter(s => (s.grade_name || 'Sin grado') === gradeName);
+                                        const gradeStudents = students.filter(s => groupKey(s) === gradeName);
                                         if (gradeStudents.length === 0) return null;
                                         return (
                                             <div key={gradeName} className="mb-6">

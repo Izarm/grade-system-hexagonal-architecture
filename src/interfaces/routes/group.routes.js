@@ -10,6 +10,7 @@ router.get('/:id', authenticate, groupController.getById);
 
 // Las rutas de escritura requieren autenticación y rol de admin
 router.post('/', authenticate, authorize(['admin']), groupController.create);
+router.put('/:id/head-teacher', authenticate, authorize(['admin']), groupController.assignHeadTeacher);
 router.put('/:id', authenticate, authorize(['admin']), groupController.update);
 router.delete('/:id', authenticate, authorize(['admin']), groupController.delete);
 

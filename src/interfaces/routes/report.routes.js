@@ -13,13 +13,28 @@ router.get('/students-list', authorize(['admin', 'docente']), controller.getStud
 // Rutas solo para admin
 router.get('/full-structure', authorize(['admin']), controller.getFullStructure);
 router.get('/student-report-card', authorize(['admin']), controller.generateStudentReportCard);
-router.get('/alphabetical-list', authorize(['admin']), controller.generateAlphabeticalList);
+// Listado de estudiantes por curso (PDF o Excel).
+// ?academicYearId=  y opcionalmente  &groupId=  o  &gradeId=  y  &format=excel
+router.get('/student-listing', authorize(['admin', 'docente']), controller.generateAlphabeticalList);
+// Listado con todos los datos del estudiante (Word o Excel)
+router.get('/student-data-sheet', authorize(['admin', 'docente']), controller.generateStudentDataSheet);
+// Nombre anterior, se mantiene para no romper enlaces guardados.
+router.get('/alphabetical-list', authorize(['admin', 'docente']), controller.generateAlphabeticalList);
 router.get('/bulk-report-cards', authorize(['admin']), controller.generateBulkReportCards);
 
 // REPORTES WORD
 router.get('/period-report-word', authorize(['admin', 'docente']), controller.generatePeriodReportWord);
 router.get('/final-report-word', authorize(['admin', 'docente']), controller.generateFinalReportWord);
 router.get('/bulk-word-reports', authorize(['admin']), controller.generateBulkWordReports);
+
+// BOLETINES PARA IMPRIMIR (HTML que se auto-imprime en el navegador)
+router.get('/bulk-print', authorize(['admin']), controller.generateBulkPrintHTML);
+
+// TARJETA ACUMULATIVA DE MATRÍCULA (historial de un estudiante)
+router.get('/enrollment-card-word', authorize(['admin']), controller.generateEnrollmentCardWord);
+
+// LIBRO DE CALIFICACIONES (por grado)
+router.get('/grade-book-word', authorize(['admin']), controller.generateGradeBookWord);
 
 // REPORTES WORD — POR GRADO
 router.get('/grade-report-word', authorize(['admin', 'docente']), controller.generateGradeReportWord);

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page {
+        size: A4;
+        margin: 16mm 18mm 14mm 18mm;
+        @bottom-center { content: counter(page); }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        color: #1a1a1a;
+        font-size: 11pt;
+        line-height: 1.42;
+        text-align: justify;
+    }
+
+    /* ---------- Portada ---------- */
+    .cover {
+        height: 170mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        page-break-after: always;
+        border-top: 4px solid #1d4ed8;
+        border-bottom: 4px solid #1d4ed8;
+    }
+    .cover .school { font-size: 13pt; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 28px; }
+    .cover h1 { font-size: 32pt; font-weight: normal; color: #1d4ed8; line-height: 1.2; }
+    .cover .sub { font-size: 15pt; font-style: italic; color: #444; margin-top: 16px; }
+    .cover .divider { width: 90px; height: 2px; background: #1d4ed8; margin: 26px auto; }
+    .cover .meta { font-size: 11pt; color: #666; margin-top: 6px; }
+
+    /* ---------- Encabezados ---------- */
+    h2 {
+        font-size: 15pt;
+        color: #1d4ed8;
+        font-weight: normal;
+        margin: 16px 0 3px 0;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #cbd5e1;
+        page-break-after: avoid;
+    }
+    h2 .n { font-weight: bold; color: #1a1a1a; }
+    h3 {
+        font-size: 12pt;
+        color: #1a1a1a;
+        margin: 10px 0 2px 0;
+        page-break-after: avoid;
+    }
+    .section { page-break-inside: auto; }
+    .newpage { page-break-before: auto; }
+
+    p { margin-bottom: 6px; }
+    p.intro { margin-bottom: 7px; }
+
+    ol, ul { margin: 4px 0 8px 24px; }
+    li { margin-bottom: 3px; }
+
+    b, strong { color: #111; }
+    em { color: #1d4ed8; font-style: italic; }
+
+    .nota {
+        margin: 8px 0;
+        padding: 7px 12px;
+        border-left: 3px solid #1d4ed8;
+        background: #f6f8fc;
+        font-size: 10.5pt;
+        text-align: left;
+    }
+    .nota .lbl { font-weight: bold; font-variant: small-caps; color: #1d4ed8; letter-spacing: .5px; }
+
+    .toc { margin: 6px 0 0 0; }
+    .toc-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #bbb; padding: 3px 0; font-size: 11pt; }
+    .toc-item span:first-child b { color: #1d4ed8; }
+
+    table.ref { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10.5pt; text-align: left; }
+    table.ref th, table.ref td { border: 1px solid #cbd5e1; padding: 6px 9px; vertical-align: top; }
+    table.ref th { background: #1d4ed8; color: #fff; font-weight: normal; }
+
+    .footer-final { margin-top: 18px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 10pt; color: #666; text-align: center; font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- ============ PORTADA ============ -->
+<div class="cover">
+    <div class="school">Colegio San José de Tarbes</div>
+    <h1>Manual del Docente</h1>
+    <div class="sub">Sistema de Gestión de Notas</div>
+    <div class="divider"></div>
+    <div class="meta">Guía de uso de la plataforma académica</div>
+    <div class="meta">Perfil: Docente</div>
+</div>
+
+<!-- ============ INDICE ============ -->
+<h2><span class="n">Contenido</span></h2>
+<div class="toc">
+    <div class="toc-item"><span>Introducción y acceso al sistema</span><span>1</span></div>
+    <div class="toc-item"><span><b>1.</b> Registro de Notas</span><span>2</span></div>
+    <div class="toc-item"><span><b>2.</b> Asistencia</span><span>2</span></div>
+    <div class="toc-item"><span><b>3.</b> Consultar Notas</span><span>3</span></div>
+    <div class="toc-item"><span><b>4.</b> Director de Grado</span><span>3</span></div>
+    <div class="toc-item"><span>Resumen y preguntas frecuentes</span><span>4</span></div>
+</div>
+
+<!-- ============ INTRODUCCION ============ -->
+<div class="section">
+    <h2><span class="n">Introducción y acceso al sistema</span></h2>
+    <p class="intro">Este manual describe las cuatro funciones que tiene disponibles el docente dentro de la plataforma del Colegio San José de Tarbes: el registro de notas, el registro de asistencia, la consulta de calificaciones y, para quienes son directores de grado, el reporte por grado.</p>
+
+    <p>Antes de utilizar cualquier módulo conviene tener claros dos conceptos fundamentales. El primero es el <em>año lectivo activo</em>: la plataforma trabaja siempre sobre el año que el administrador ha dejado activo, y es el único sobre el cual el docente puede registrar información. Cada módulo lo muestra indicado en la parte superior. El segundo concepto son los <em>períodos</em>: cada año se divide en períodos académicos que pueden estar <b>abiertos</b> o <b>cerrados</b>. Cuando un período está abierto, el docente puede escribir y modificar notas y faltas; cuando está cerrado, la información queda disponible únicamente para consulta.</p>
+
+    <h3>Iniciar sesión</h3>
+    <p>Para ingresar, el docente abre la plataforma en su navegador e introduce su correo electrónico y su contraseña. Una vez validados los datos, accede directamente al Panel Docente, donde encontrará en la parte izquierda el menú con los cuatro módulos. En caso de haber olvidado la contraseña, la pantalla de inicio de sesión ofrece la opción <b>"¿Olvidaste tu contraseña?"</b>, que envía un enlace de recuperación al correo registrado.</p>
+
+    <p>Desde la esquina superior derecha, al hacer clic sobre el nombre de usuario, el docente puede consultar y editar sus datos personales, así como cambiar su contraseña. Al terminar de trabajar, se recomienda usar la opción <b>"Cerrar sesión"</b>.</p>
+
+    <div class="nota">
+        <span class="lbl">Concepto clave.</span> Una <b>asignación</b> es una materia que el docente dicta en un grupo determinado (por ejemplo, "Grado 6°A — Matemáticas"). Las materias <b>electivas</b> aparecen identificadas con la palabra "[Electiva]" y reúnen estudiantes de varios grados en una misma lista.
+    </div>
+</div>
+
+<!-- ============ MODULO 1 ============ -->
+<div class="section newpage">
+    <h2><span class="n">1. Registro de Notas</span></h2>
+    <p class="intro">Es el módulo principal del docente. Permite cargar las calificaciones de los estudiantes, materia por materia y período por período.</p>
+
+    <p>El procedimiento es el siguiente:</p>
+    <ol>
+        <li>Seleccionar la <b>Asignación</b> correspondiente, es decir, la materia y el grupo que se desea calificar.</li>
+        <li>Seleccionar el <b>Período</b> en el que se registrarán las notas. Junto al período aparecerá una indicación de su estado: <b>Abierto</b> o <b>Cerrado</b>.</li>
+        <li>Una vez elegidos ambos campos, se despliega la lista de estudiantes matriculados. Para cada uno se ingresa la <b>Nota</b> (en una escala de 0 a 10), la <b>Nota Actitudinal</b> y el número de <b>Faltas</b>.</li>
+        <li>Finalmente se pulsa el botón <b>"Guardar todas las notas"</b>. El sistema almacena únicamente las filas que contengan algún dato, de modo que no es obligatorio llenar toda la lista de una sola vez.</li>
+    </ol>
+
+    <p>En el caso de las materias <b>electivas</b> existen dos diferencias: no se registra nota actitudinal, y los estudiantes se presentan agrupados por grado. Para facilitar la ubicación, el módulo ofrece un buscador y botones de filtro por grado.</p>
+
+    <div class="nota">
+        <span class="lbl">Importante.</span> Si el período seleccionado está <b>cerrado</b>, la tabla se muestra en modo de solo lectura y no es posible registrar ni modificar calificaciones. En tal caso debe solicitarse al administrador la reapertura del período. Asimismo, si el docente intenta salir de la página con cambios sin guardar, el sistema le mostrará una advertencia.
+    </div>
+</div>
+
+<!-- ============ MODULO 2 ============ -->
+<div class="section">
+    <h2><span class="n">2. Asistencia</span></h2>
+    <p class="intro">Este módulo está dedicado exclusivamente al registro de las faltas de los estudiantes. Resulta útil cuando se desea actualizar la asistencia de forma rápida sin necesidad de abrir el registro completo de notas.</p>
+
+    <p>Para utilizarlo se siguen estos pasos:</p>
+    <ol>
+        <li>Seleccionar el <b>Año lectivo</b>, el <b>Período</b> y la <b>Asignatura / Grupo</b>.</li>
+        <li>El sistema carga la lista de estudiantes junto con el número de faltas que cada uno tiene registrado hasta el momento.</li>
+        <li>Se modifica el número de <b>Faltas</b> del estudiante y se guarda: puede hacerse de manera individual con el botón <b>"Guardar"</b> de cada fila, o de forma conjunta con el botón <b>"Guardar todo"</b>.</li>
+        <li>Al pie de la lista se muestra el total de faltas acumuladas por el grupo.</li>
+    </ol>
+
+    <p>Como ayuda visual, los estudiantes que acumulan <b>cinco faltas o más</b> se resaltan y se marcan con la leyenda "Alto ausentismo", lo que permite identificarlos con facilidad.</p>
+
+    <div class="nota">
+        <span class="lbl">Importante.</span> Al igual que en el registro de notas, si el período aparece marcado como cerrado los campos de faltas quedan bloqueados y no pueden editarse.
+    </div>
+</div>
+
+<!-- ============ MODULO 3 ============ -->
+<div class="section newpage">
+    <h2><span class="n">3. Consultar Notas</span></h2>
+    <p class="intro">Este módulo permite revisar las calificaciones ya registradas sin riesgo de modificarlas, pues funciona en modo de solo lectura.</p>
+
+    <p>Su uso es sencillo:</p>
+    <ol>
+        <li>Seleccionar la <b>Asignación</b> y el <b>Período</b> que se desea revisar.</li>
+        <li>Pulsar el botón <b>"Consultar notas"</b>.</li>
+        <li>El sistema muestra una tabla con la Nota, la Nota Actitudinal y las Faltas de cada estudiante, expresadas con dos decimales.</li>
+    </ol>
+
+    <p>Del mismo modo que en el registro, cuando se trata de una materia electiva los resultados se presentan ordenados por grado. Este módulo es especialmente útil para verificar que toda la información esté correcta antes de que un período se cierre definitivamente.</p>
+</div>
+
+<!-- ============ MODULO 4 ============ -->
+<div class="section">
+    <h2><span class="n">4. Director de Grado</span></h2>
+    <p class="intro">Este módulo está disponible únicamente para los docentes que ejercen como directores de grado. Ofrece una visión completa del curso, mostrando todas las materias de cada estudiante, y permite dejar una reseña u observación individual.</p>
+
+    <p>El procedimiento es el siguiente:</p>
+    <ol>
+        <li>Seleccionar el <b>Grado</b> que se dirige. En la lista solo aparecerán los grados de los cuales el docente es director.</li>
+        <li>Seleccionar el <b>Período</b> deseado.</li>
+        <li>El sistema genera una tabla con todos los estudiantes en las filas y todas las materias en las columnas, mostrando para cada una la nota, la nota actitudinal y las faltas.</li>
+        <li>En la columna <b>Reseña</b>, mediante el botón <b>"Agregar reseña"</b>, el director puede escribir una observación sobre el estudiante y guardarla.</li>
+    </ol>
+
+    <p>Adicionalmente, en el selector de período existe la opción <b>"Reporte Final"</b>, que muestra el promedio de todos los períodos del año para cada materia.</p>
+
+    <div class="nota">
+        <span class="lbl">Reporte final.</span> Cuando se trabaja en modo "Reporte Final", la reseña que escriba el director corresponde a la observación de cierre del año, y las notas mostradas representan el promedio de todos los períodos. Toda reseña registrada queda visible en el reporte individual del estudiante.
+    </div>
+</div>
+
+<!-- ============ RESUMEN ============ -->
+<div class="section newpage">
+    <h2><span class="n">Resumen de funciones</span></h2>
+    <p class="intro">La siguiente tabla resume el propósito de cada módulo y los aspectos que conviene recordar.</p>
+
+    <table class="ref">
+        <thead>
+            <tr><th style="width:24%">Módulo</th><th style="width:40%">Función</th><th style="width:36%">A tener en cuenta</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><b>Registro de Notas</b></td>
+                <td>Cargar nota, nota actitudinal y faltas por materia y período.</td>
+                <td>Requiere período abierto. Se guarda con "Guardar todas las notas".</td>
+            </tr>
+            <tr>
+                <td><b>Asistencia</b></td>
+                <td>Registrar o corregir únicamente las faltas de forma ágil.</td>
+                <td>Cinco faltas o más generan alerta. Se guarda por fila o en conjunto.</td>
+            </tr>
+            <tr>
+                <td><b>Consultar Notas</b></td>
+                <td>Revisar las calificaciones ya registradas.</td>
+                <td>Modo de solo lectura, con dos decimales.</td>
+            </tr>
+            <tr>
+                <td><b>Director de Grado</b></td>
+                <td>Ver todas las materias del curso y registrar reseñas.</td>
+                <td>Solo para los grados dirigidos. "Reporte Final" muestra el promedio del año.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2><span class="n">Preguntas frecuentes</span></h2>
+
+    <h3>No puedo escribir las notas</h3>
+    <p>Lo más probable es que el período se encuentre cerrado. En ese caso debe solicitarse al administrador que lo reabra.</p>
+
+    <h3>No aparece mi grado en el módulo Director de Grado</h3>
+    <p>En ese módulo solo se muestran los grados en los que el docente está asignado como director. Si no aparece ninguno, debe verificarse la asignación con el administrador.</p>
+
+    <h3>No se muestra ningún año lectivo</h3>
+    <p>Significa que no hay un año lectivo activo en el sistema. El administrador es quien debe activarlo.</p>
+
+    <h3>Salí de la página sin guardar</h3>
+    <p>La plataforma advierte automáticamente antes de abandonar la página cuando existen cambios sin guardar, de modo que puede evitarse la pérdida de información.</p>
+
+    <div class="footer-final">
+        Colegio San José de Tarbes &nbsp;·&nbsp; Manual del Docente &nbsp;·&nbsp; Sistema de Gestión de Notas
+    </div>
+</div>
+
+</body>
+</html>

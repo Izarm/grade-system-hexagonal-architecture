@@ -1,24 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/client';
+import { apellidosDe, nombresDe } from '../../utils/nombres';
 
 const ProfileModal = ({ onClose }) => {
     const [profile, setProfile] = useState(null);
-    const [form, setForm] = useState({ name: '', document: '', email: '', phone: '' });
+    const [form, setForm] = useState({ lastName: '', firstName: '', email: '', phone: '' });
     const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [tab, setTab] = useState('info');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
+        mountedRef.current = true;
         api.get('/auth/me').then(r => {
+            if (!mountedRef.current) return;
             setProfile(r.data);
             setForm({
-                name: r.data.name || '',
-                document: r.data.document || '',
+                lastName: apellidosDe(r.data),
+                firstName: nombresDe(r.data),
                 email: r.data.email || '',
                 phone: r.data.phone || '',
             });
-        }).catch(() => {});
+        }).catch(() => {
+            if (mountedRef.current) notify('error', 'No se pudo cargar el perfil');
+        });
+        return () => { mountedRef.current = false; };
     }, []);
 
     const notify = (type, text) => {
@@ -116,12 +123,11 @@ const ProfileModal = ({ onClose }) => {
                     <form onSubmit={handleSaveInfo} className="p-6 space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-600 mb-1">Nombre completo</label>
-                            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">Documento</label>
-                            <input type="text" value={form.document} onChange={e => setForm({...form, document: e.target.value})} required
+                            <input type="text" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} required
+                                placeholder="Apellidos"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm mb-2" />
+                            <input type="text" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} required
+                                placeholder="Nombres"
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" />
                         </div>
                         <div>

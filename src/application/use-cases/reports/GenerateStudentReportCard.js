@@ -1,5 +1,8 @@
-// src/application/use-cases/reports/GenerateStudentReportCard.js
 const PDFDocument = require('pdfkit');
+const path = require('path');
+
+const FONT_REGULAR = 'C:\\Windows\\Fonts\\Arial.ttf';
+const FONT_BOLD    = 'C:\\Windows\\Fonts\\arialbd.ttf';
 
 class GenerateStudentReportCard {
     constructor(studentRepository) {
@@ -7,18 +10,14 @@ class GenerateStudentReportCard {
     }
 
     async execute(studentId, academicYearId) {
-        // Obtener información del estudiante
         const student = await this.studentRepository.findById(studentId);
         if (!student) throw new Error('Estudiante no encontrado');
 
-        // Obtener matrícula
         const enrollment = await this.studentRepository.findEnrollmentsByStudent(studentId, academicYearId);
         if (!enrollment) throw new Error('Estudiante no matriculado en este año lectivo');
 
-        // Obtener notas
         const grades = await this.studentRepository.getStudentGradesForReport(studentId, academicYearId);
 
-        // Organizar notas por período
         const periods = {};
         grades.forEach(g => {
             if (!periods[g.period_name]) {
@@ -26,98 +25,129 @@ class GenerateStudentReportCard {
             }
             periods[g.period_name].subjects.push({
                 name: g.subject_name,
-                area: g.area,
-                normal: g.normal_note,
-                aptitudinal: g.aptitudinal_note,
-                average: g.average
+                isElective: g.is_elective,
+                normal: g.normal_note != null ? parseFloat(g.normal_note) : null,
+                aptitudinal: g.aptitudinal_note != null ? parseFloat(g.aptitudinal_note) : null,
+                average: g.average != null ? parseFloat(g.average) : null
             });
         });
 
-        // Ordenar períodos
         const sortedPeriods = Object.keys(periods).sort((a, b) => periods[a].period_order - periods[b].period_order);
 
-        // Crear el PDF
         const doc = new PDFDocument({ margin: 50, size: 'A4' });
         const chunks = [];
         doc.on('data', chunk => chunks.push(chunk));
 
         return new Promise((resolve, reject) => {
-            doc.on('end', () => {
-                const pdfBuffer = Buffer.concat(chunks);
-                resolve(pdfBuffer);
-            });
+            doc.on('end', () => resolve(Buffer.concat(chunks)));
             doc.on('error', reject);
 
+            const L = 50;  // left margin
+            const W = doc.page.width - 100;  // usable width
+
             // Encabezado
-            doc.fontSize(20).font('Helvetica-Bold').text('Colegio San José de Tarbes', { align: 'center' });
-            doc.fontSize(14).font('Helvetica').text('Boletín Académico', { align: 'center' });
-            doc.moveDown();
+            doc.font(FONT_BOLD).fontSize(18).text('Colegio San José de Tarbes', L, 50, { width: W, align: 'center' });
+            doc.font(FONT_REGULAR).fontSize(13).text('Boletín Académico', L, doc.y + 4, { width: W, align: 'center' });
+            doc.moveDown(1);
 
-            doc.fontSize(12).font('Helvetica-Bold').text('Datos del Estudiante');
-            doc.fontSize(10).font('Helvetica');
-            doc.text(`Nombre: ${student.full_name}`);
-            doc.text(`Documento: ${student.document}`);
-            if (student.birth_date) doc.text(`Fecha de nacimiento: ${student.birth_date}`);
-            doc.text(`Grado: ${enrollment.grade_name} - Grupo: ${enrollment.group_name}`);
-            doc.text(`Año Lectivo: ${academicYearId}`);
-            doc.moveDown();
+            // Datos del estudiante
+            const sy = doc.y;
+            doc.font(FONT_BOLD).fontSize(10).text('Datos del Estudiante', L, sy);
+            doc.moveDown(0.4);
+            doc.font(FONT_REGULAR).fontSize(10);
+            doc.text(`Nombre: ${student.full_name || ''}`);
+            doc.text(`Código: ${student.student_code || ''}`);
+            doc.text(`Grado: ${enrollment.grade_name || ''} — Grupo: ${enrollment.group_name || ''}`);
+            doc.text(`Año lectivo: ${enrollment.academic_year_name || academicYearId}`);
+            if (enrollment.head_teacher_name) doc.text(`Director de grupo: ${enrollment.head_teacher_name}`);
+            doc.moveDown(1);
 
-            // Tabla de notas por período
+            // Columnas
+            const COL = [L, L + 200, L + 290, L + 375, L + 460];
+            const colW = [200, 80, 80, 80, W - 460];
+
+            const drawTableHeader = (y) => {
+                doc.font(FONT_BOLD).fontSize(8);
+                doc.rect(L, y, W, 16).fill('#1d4ed8');
+                doc.fillColor('white');
+                doc.text('Asignatura',     COL[0] + 3, y + 3, { width: colW[0] - 6 });
+                doc.text('Nota regular',   COL[1] + 3, y + 3, { width: colW[1] - 6, align: 'center' });
+                doc.text('Actitudinal',    COL[2] + 3, y + 3, { width: colW[2] - 6, align: 'center' });
+                doc.text('Promedio',       COL[3] + 3, y + 3, { width: colW[3] - 6, align: 'center' });
+                doc.fillColor('black');
+            };
+
+            let sumAll = 0, cntAll = 0;
+
             for (const periodName of sortedPeriods) {
-                doc.fontSize(12).font('Helvetica-Bold').text(periodName, { underline: true });
-                doc.moveDown(0.5);
+                // Asegurar espacio suficiente para encabezado + al menos 2 filas
+                if (doc.y > doc.page.height - 150) doc.addPage();
 
-                const startX = doc.x;
-                const colWidths = [150, 80, 80, 80];
-                doc.fontSize(9).font('Helvetica-Bold');
-                doc.text('Asignatura', startX);
-                doc.text('Nota Normal', startX + colWidths[0]);
-                doc.text('Nota Actitudinal', startX + colWidths[0] + colWidths[1]);
-                doc.text('Promedio', startX + colWidths[0] + colWidths[1] + colWidths[2]);
-                doc.moveDown(0.5);
+                doc.font(FONT_BOLD).fontSize(11).text(periodName, L, doc.y, { underline: true });
+                doc.moveDown(0.4);
 
-                doc.fontSize(9).font('Helvetica');
-                for (const subject of periods[periodName].subjects) {
-                    const avg = subject.average !== null ? subject.average.toFixed(2) : '-';
-                    const normalStr = subject.normal !== null ? subject.normal.toFixed(2) : '-';
-                    const aptitudinalStr = subject.aptitudinal !== null ? subject.aptitudinal.toFixed(2) : '-';
+                const headerY = doc.y;
+                drawTableHeader(headerY);
+                let rowY = headerY + 18;
+                let odd = true;
 
-                    doc.text(subject.name, startX);
-                    doc.text(normalStr, startX + colWidths[0]);
-                    doc.text(aptitudinalStr, startX + colWidths[0] + colWidths[1]);
+                const nonElective = periods[periodName].subjects.filter(s => !s.isElective);
+                const elective    = periods[periodName].subjects.filter(s =>  s.isElective);
+                const allSubs = [...nonElective, ...elective];
 
-                    if (subject.average !== null) {
-                        if (subject.average >= 9.0) doc.fillColor('#0ea5e9');       // Superior
-                        else if (subject.average >= 7.8) doc.fillColor('#10b981'); // Alto
-                        else if (subject.average >= 6.5) doc.fillColor('#f59e0b'); // Básico
-                        else doc.fillColor('#ef4444');                              // Bajo
+                for (const sub of allSubs) {
+                    if (rowY > doc.page.height - 80) {
+                        doc.addPage();
+                        drawTableHeader(50);
+                        rowY = 68;
+                        odd = true;
                     }
-                    doc.text(avg, startX + colWidths[0] + colWidths[1] + colWidths[2]);
-                    doc.fillColor('black');
-                    doc.moveDown(0.3);
+
+                    const bg = odd ? '#f1f5f9' : '#ffffff';
+                    doc.rect(L, rowY, W, 14).fill(bg);
+                    odd = !odd;
+
+                    const avgVal = sub.average;
+                    let avgColor = '#1e293b';
+                    if (avgVal !== null) {
+                        if (avgVal >= 9.0) avgColor = '#0284c7';
+                        else if (avgVal >= 7.8) avgColor = '#16a34a';
+                        else if (avgVal >= 6.5) avgColor = '#d97706';
+                        else avgColor = '#dc2626';
+                        sumAll += avgVal; cntAll++;
+                    }
+
+                    const avgStr  = avgVal !== null ? avgVal.toFixed(2) : '-';
+                    const normStr = sub.normal !== null ? sub.normal.toFixed(2) : '-';
+                    const aptStr  = sub.aptitudinal !== null ? sub.aptitudinal.toFixed(2) : '-';
+                    const subjLabel = sub.isElective ? `${sub.name} (electiva)` : sub.name;
+
+                    doc.font(FONT_REGULAR).fontSize(8).fillColor('#1e293b');
+                    doc.text(subjLabel, COL[0] + 3, rowY + 3, { width: colW[0] - 6 });
+                    doc.text(normStr,   COL[1] + 3, rowY + 3, { width: colW[1] - 6, align: 'center' });
+                    doc.text(aptStr,    COL[2] + 3, rowY + 3, { width: colW[2] - 6, align: 'center' });
+                    doc.fillColor(avgColor);
+                    doc.text(avgStr,    COL[3] + 3, rowY + 3, { width: colW[3] - 6, align: 'center' });
+                    doc.fillColor('#1e293b');
+                    rowY += 14;
                 }
-                doc.moveDown();
+                doc.y = rowY + 6;
+                doc.moveDown(0.5);
             }
 
             // Promedio general
-            let sumAverages = 0;
-            let count = 0;
-            for (const periodName of sortedPeriods) {
-                for (const subject of periods[periodName].subjects) {
-                    if (subject.average !== null) {
-                        sumAverages += subject.average;
-                        count++;
-                    }
-                }
-            }
-            const overallAvg = count > 0 ? (sumAverages / count).toFixed(2) : '-';
-            doc.fontSize(12).font('Helvetica-Bold');
-            doc.text(`Promedio General: ${overallAvg}`, { align: 'right' });
+            const overallAvg = cntAll > 0 ? (sumAll / cntAll).toFixed(2) : '-';
+            const overallColor = parseFloat(overallAvg) >= 6.0 ? '#16a34a' : '#dc2626';
+            doc.moveDown(0.5);
+            doc.font(FONT_BOLD).fontSize(11).fillColor('#1e293b');
+            doc.text(`Promedio general del año: `, L, doc.y, { continued: true });
+            doc.fillColor(overallColor).text(overallAvg, { align: 'left' });
+            doc.fillColor('#1e293b');
 
             doc.moveDown(2);
-            doc.fontSize(8).font('Helvetica');
-            doc.text('Documento generado por el Sistema de Gestión Académica - Colegio San José de Tarbes', { align: 'center' });
-
+            doc.font(FONT_REGULAR).fontSize(7)
+               .text('Documento generado por el Sistema de Gestión Académica — Colegio San José de Tarbes',
+                     L, doc.y, { width: W, align: 'center' });
             doc.end();
         });
     }

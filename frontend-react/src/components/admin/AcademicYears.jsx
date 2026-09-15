@@ -1,7 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
 import api from '../../api/client';
+import CampoFecha from '../common/CampoFecha';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useActiveAcademicYear } from '../../hooks/useActiveAcademicYear';
+import History from './History';
 
 const AcademicYears = () => {
     const [years, setYears] = useState([]);
@@ -347,12 +349,9 @@ const AcademicYears = () => {
                 </div>
             )}
 
-            <div className="flex mb-6 border-b border-gray-200">
+            <div className="flex mb-6 border-b border-gray-200 flex-wrap">
                 <button
-                    onClick={() => {
-                        setActiveTab('create');
-                        setEditingId(null);
-                    }}
+                    onClick={() => { setActiveTab('create'); setEditingId(null); }}
                     className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
                         activeTab === 'create'
                             ? 'border-blue-700 text-blue-700'
@@ -370,6 +369,16 @@ const AcademicYears = () => {
                     }`}
                 >
                     Listado de años
+                </button>
+                <button
+                    onClick={() => setActiveTab('history')}
+                    className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        activeTab === 'history'
+                            ? 'border-blue-700 text-blue-700'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                    Historial académico
                 </button>
             </div>
 
@@ -398,24 +407,18 @@ const AcademicYears = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-600 mb-1">Fecha de inicio</label>
-                                <input
-                                    type="date"
-                                    name="startDate"
+                                <CampoFecha
                                     value={form.startDate}
-                                    onChange={handleYearChange}
+                                    onChange={v => handleYearChange({ target: { name: 'startDate', value: v } })}
                                     required
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm"
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-600 mb-1">Fecha de fin</label>
-                                <input
-                                    type="date"
-                                    name="endDate"
+                                <CampoFecha
                                     value={form.endDate}
-                                    onChange={handleYearChange}
+                                    onChange={v => handleYearChange({ target: { name: 'endDate', value: v } })}
                                     required
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm"
                                 />
                             </div>
                         </div>
@@ -464,17 +467,15 @@ const AcademicYears = () => {
                                             />
                                         </div>
                                         <div className="grid grid-cols-2 gap-2 mb-2">
-                                            <input
-                                                type="date"
+                                            <CampoFecha
                                                 value={p.startDate}
-                                                onChange={(e) => handlePeriodChange(idx, 'startDate', e.target.value)}
-                                                className="px-2 py-1.5 border border-gray-200 rounded text-sm"
+                                                onChange={v => handlePeriodChange(idx, 'startDate', v)}
+                                                className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
                                             />
-                                            <input
-                                                type="date"
+                                            <CampoFecha
                                                 value={p.endDate}
-                                                onChange={(e) => handlePeriodChange(idx, 'endDate', e.target.value)}
-                                                className="px-2 py-1.5 border border-gray-200 rounded text-sm"
+                                                onChange={v => handlePeriodChange(idx, 'endDate', v)}
+                                                className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </div>
                                         <div className="flex items-center gap-3 flex-wrap">
@@ -715,6 +716,8 @@ const AcademicYears = () => {
                 </div>
             )}
 
+            {activeTab === 'history' && <History />}
+
             <ConfirmDialog
                 isOpen={showConfirm}
                 onClose={cancelDelete}
@@ -744,14 +747,24 @@ const AcademicYears = () => {
                 onClose={() => setShowCloseConfirm(false)}
                 onConfirm={handleCloseYear}
                 title="Cerrar año lectivo"
-                message={`¿Estas seguro de cerrar el año ${activeYear?.name}?
-                    
-Atencion: Esta accion:
-- Bloqueara todas las notas
-- No se podran crear nuevas matriculas
-- No se podran editar calificaciones
-- Los datos historicos se conservaran`}
-                confirmText="Cerrar año"
+                message={
+                    <div>
+                        <p className="font-medium text-gray-800 mb-2">
+                            ¿Estás seguro de cerrar el año <strong>{activeYear?.name}</strong>?
+                        </p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-xs text-amber-800 space-y-1 mb-2">
+                            <p className="font-medium">Advertencia: Esta acción tendrá los siguientes efectos:</p>
+                            <ul className="list-disc list-inside space-y-0.5 ml-1">
+                                <li>Se bloquearán todas las notas del año</li>
+                                <li>No se podrán crear nuevas matrículas</li>
+                                <li>No se podrán editar calificaciones existentes</li>
+                                <li>Los períodos abiertos serán cerrados automáticamente</li>
+                            </ul>
+                        </div>
+                        <p className="text-xs text-gray-500">Los datos históricos se conservarán. Puedes reabrir el año si es necesario.</p>
+                    </div>
+                }
+                confirmText="Sí, cerrar año"
                 cancelText="Cancelar"
             />
 

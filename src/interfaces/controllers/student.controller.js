@@ -4,11 +4,13 @@ const DeleteStudent = require('../../application/use-cases/student/DeleteStudent
 const ListStudents = require('../../application/use-cases/student/ListStudents');
 const GetStudent = require('../../application/use-cases/student/GetStudent');
 const StudentRepository = require('../../infrastructure/repositories/StudentRepository');
+const EnrollmentRepository = require('../../infrastructure/repositories/EnrollmentRepository');
 const pool = require('../../infrastructure/database/mysql');
 
 const repo = new StudentRepository();
+const enrollmentRepo = new EnrollmentRepository();
 const create = new CreateStudent(repo);
-const update = new UpdateStudent(repo);
+const update = new UpdateStudent(repo, enrollmentRepo);
 const del = new DeleteStudent(repo);
 const list = new ListStudents(repo);
 const get = new GetStudent(repo);
@@ -45,6 +47,22 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
+        const user = req.user;
+        if (user.role === 'docente') {
+            const [rows] = await pool.query(
+                `SELECT DISTINCT s.id, s.full_name, s.student_code, s.created_at
+                 FROM students s
+                 JOIN enrollments e ON e.student_id = s.id
+                 JOIN subject_assignments sa ON sa.group_id = e.group_id
+                 JOIN academic_years ay ON sa.academic_year_id = ay.id
+                 WHERE sa.teacher_id = ? AND ay.active = 1
+                   AND s.deleted_at IS NULL AND e.deleted_at IS NULL
+                   AND sa.deleted_at IS NULL AND e.academic_year_id = ay.id
+                 ORDER BY s.full_name`,
+                [user.id]
+            );
+            return res.json(rows);
+        }
         const students = await list.execute();
         res.json(students);
     } catch (error) {
@@ -58,6 +76,15 @@ exports.getById = async (req, res) => {
         res.json(student);
     } catch (error) {
         res.status(404).json({ message: error.message });
+    }
+};
+
+exports.generateCode = async (req, res) => {
+    try {
+        const code = await repo.generateCode();
+        res.json({ code });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 

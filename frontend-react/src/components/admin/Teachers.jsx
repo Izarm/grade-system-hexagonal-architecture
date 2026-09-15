@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/client';
+import { apellidosDe, nombresDe } from '../../utils/nombres';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useRefresh } from '../../contexts/RefreshContext';
 
@@ -10,8 +11,8 @@ const normalize = (str) => str?.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/
 
 const EditModal = ({ teacher, onClose, onSaved }) => {
     const [form, setForm] = useState({
-        name: teacher.name || '',
-        document: teacher.document || '',
+        lastName: apellidosDe(teacher),
+        firstName: nombresDe(teacher),
         email: teacher.email || '',
         phone: teacher.phone || '',
         role: teacher.role || 'docente',
@@ -34,10 +35,10 @@ const EditModal = ({ teacher, onClose, onSaved }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="text-[15px] font-semibold text-gray-800">Editar docente</h3>
+                    <h3 className="text-[15px] font-semibold text-gray-800">Editar usuario</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -51,12 +52,11 @@ const EditModal = ({ teacher, onClose, onSaved }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-600 mb-1">Nombre completo</label>
-                            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">Documento</label>
-                            <input type="text" value={form.document} onChange={e => setForm({...form, document: e.target.value})} required
+                            <input type="text" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} required
+                                placeholder="Apellidos"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm mb-2" />
+                            <input type="text" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} required
+                                placeholder="Nombres"
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" />
                         </div>
                         <div>
@@ -94,15 +94,152 @@ const EditModal = ({ teacher, onClose, onSaved }) => {
     );
 };
 
+const ReplaceModal = ({ teacher, teachers, onClose, onDone }) => {
+    const [newTeacherId, setNewTeacherId] = useState('');
+    const [transferDir, setTransferDir] = useState(true);
+    const [deactivateOld, setDeactivateOld] = useState(true);
+    const [search, setSearch] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const hasDirectorship = teacher.director_grades?.length > 0;
+    const assignmentCount = teacher.assignments?.length || 0;
+
+    const available = teachers.filter(t =>
+        t.id !== teacher.id &&
+        normalize(t.name).includes(normalize(search))
+    );
+
+    const handleConfirm = async () => {
+        if (!newTeacherId) { setError('Selecciona el docente entrante'); return; }
+        setLoading(true);
+        setError(null);
+        try {
+            await api.post(`/users/${teacher.id}/replace`, {
+                newTeacherId: parseInt(newTeacherId),
+                transferDirectorship: transferDir,
+                deactivateOld
+            });
+            onDone();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error al realizar el reemplazo');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const selected = teachers.find(t => t.id === parseInt(newTeacherId));
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-[15px] font-semibold text-gray-800">Reemplazar docente</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">Saliente: <strong>{teacher.name}</strong></p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {/* Resumen de lo que se va a transferir */}
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 space-y-1">
+                        <p><strong>{assignmentCount}</strong> asignación(es) serán transferidas al docente entrante.</p>
+                        {hasDirectorship && (
+                            <p>Este docente es director de: <strong>{teacher.director_grades.join(', ')}</strong>.</p>
+                        )}
+                        <p className="text-blue-500">Las notas ya registradas por este docente quedan intactas en el historial de auditoría.</p>
+                    </div>
+
+                    {/* Aviso JWT */}
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700">
+                        Si el docente tiene sesión activa en este momento, podrá seguir operando hasta que su sesión expire (máx. unas horas). Activar "Desactivar cuenta" evita que vuelva a iniciar sesión.
+                    </div>
+
+                    {error && (
+                        <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm">{error}</div>
+                    )}
+
+                    {/* Selector docente entrante */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Docente entrante</label>
+                        <input
+                            type="text"
+                            placeholder="Buscar docente..."
+                            value={search}
+                            onChange={e => { setSearch(e.target.value); setNewTeacherId(''); }}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 mb-1"
+                        />
+                        <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto text-sm">
+                            {available.length === 0 && (
+                                <p className="px-3 py-2 text-gray-400">Sin docentes disponibles</p>
+                            )}
+                            {available.map(t => (
+                                <div
+                                    key={t.id}
+                                    onClick={() => { setNewTeacherId(t.id); setSearch(t.name); }}
+                                    className={`px-3 py-2 cursor-pointer hover:bg-blue-50 transition ${parseInt(newTeacherId) === t.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                                >
+                                    {t.name}
+                                    {t.assignments?.length > 0 && (
+                                        <span className="ml-2 text-xs text-gray-400">({t.assignments.length} asig. actuales)</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        {selected && (
+                            <p className="text-xs text-emerald-600 mt-1">Seleccionado: <strong>{selected.name}</strong></p>
+                        )}
+                    </div>
+
+                    {/* Opciones */}
+                    <div className="space-y-2">
+                        {hasDirectorship && (
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                <input type="checkbox" checked={transferDir} onChange={e => setTransferDir(e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                Transferir también el rol de director de grado
+                            </label>
+                        )}
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                            <input type="checkbox" checked={deactivateOld} onChange={e => setDeactivateOld(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            Desactivar la cuenta del docente saliente
+                        </label>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-1">
+                        <button onClick={onClose} disabled={loading}
+                            className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                            Cancelar
+                        </button>
+                        <button onClick={handleConfirm} disabled={loading || !newTeacherId}
+                            className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-800 text-white rounded-lg transition disabled:opacity-50 font-medium">
+                            {loading ? 'Procesando...' : 'Confirmar reemplazo'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const TeacherList = ({ refreshKey }) => {
     const [teachers, setTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [expanded, setExpanded] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 15;
     const [editTeacher, setEditTeacher] = useState(null);
     const [deleteTeacher, setDeleteTeacher] = useState(null);
     const [message, setMessage] = useState(null);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [replaceTeacher, setReplaceTeacher] = useState(null);
 
     const notify = (type, text) => {
         setMessage({ type, text });
@@ -134,6 +271,11 @@ const TeacherList = ({ refreshKey }) => {
     };
 
     const filtered = teachers.filter(t => normalize(t.name).includes(normalize(search)));
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const goToPage = (p) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); };
+    // Reset to page 1 when search changes
+    useEffect(() => { setCurrentPage(1); }, [search]);
 
     if (loading) return (
         <div className="flex justify-center items-center py-16">
@@ -171,7 +313,7 @@ const TeacherList = ({ refreshKey }) => {
                 <p className="text-center text-gray-400 text-sm py-10">No hay docentes aprobados</p>
             ) : (
                 <div className="space-y-2">
-                    {filtered.map(teacher => {
+                    {paginated.map(teacher => {
                         const isOpen = expanded === teacher.id;
                         const academicAssign = teacher.assignments.filter(a => !a.is_elective);
                         const electiveAssign = teacher.assignments.filter(a => a.is_elective);
@@ -201,6 +343,11 @@ const TeacherList = ({ refreshKey }) => {
                                         </div>
                                     </button>
                                     <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                                        {teacher.role === 'admin' && (
+                                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                                                Administrador
+                                            </span>
+                                        )}
                                         {dirGrades.map(g => (
                                             <span key={g} className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                                                 Dir. {g}°
@@ -215,6 +362,14 @@ const TeacherList = ({ refreshKey }) => {
                                         >
                                             Editar
                                         </button>
+                                        {teacher.assignments?.length > 0 && (
+                                            <button
+                                                onClick={() => setReplaceTeacher(teacher)}
+                                                className="text-amber-600 hover:text-amber-800 text-xs font-medium px-2 py-1 rounded-lg hover:bg-amber-50 transition"
+                                            >
+                                                Reemplazar
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => { setDeleteTeacher(teacher); setShowConfirm(true); }}
                                             className="text-red-400 hover:text-red-600 text-xs font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition"
@@ -232,11 +387,7 @@ const TeacherList = ({ refreshKey }) => {
                                 {/* expanded detail */}
                                 {isOpen && (
                                     <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4 space-y-4">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                            <div>
-                                                <span className="text-gray-400 block mb-0.5">Documento</span>
-                                                <span className="text-gray-700 font-medium">{teacher.document || '-'}</span>
-                                            </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                                             <div>
                                                 <span className="text-gray-400 block mb-0.5">Telefono</span>
                                                 <span className="text-gray-700 font-medium">{teacher.phone || '-'}</span>
@@ -301,6 +452,48 @@ const TeacherList = ({ refreshKey }) => {
                 </div>
             )}
 
+            {totalPages > 1 && (() => {
+                const WINDOW = 5;
+                const half = Math.floor(WINDOW / 2);
+                let start = Math.max(1, currentPage - half);
+                let end   = Math.min(totalPages, start + WINDOW - 1);
+                if (end - start < WINDOW - 1) start = Math.max(1, end - WINDOW + 1);
+                const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+                return (
+                    <div className="flex justify-center items-center gap-1 py-4 mt-2 flex-wrap">
+                        <button onClick={() => goToPage(1)} disabled={currentPage === 1}
+                            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition">«</button>
+                        <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}
+                            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition">Anterior</button>
+                        {start > 1 && <span className="px-1 text-xs text-gray-400">…</span>}
+                        {pages.map(page => (
+                            <button key={page} onClick={() => goToPage(page)}
+                                className={`w-7 h-7 text-xs rounded-md transition ${currentPage === page ? 'bg-blue-700 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                {page}
+                            </button>
+                        ))}
+                        {end < totalPages && <span className="px-1 text-xs text-gray-400">…</span>}
+                        <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}
+                            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition">Siguiente</button>
+                        <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages}
+                            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition">»</button>
+                    </div>
+                );
+            })()}
+
+            {replaceTeacher && (
+                <ReplaceModal
+                    teacher={replaceTeacher}
+                    teachers={teachers}
+                    onClose={() => setReplaceTeacher(null)}
+                    onDone={() => {
+                        setReplaceTeacher(null);
+                        notify('success', 'Reemplazo realizado exitosamente');
+                        load();
+                    }}
+                />
+            )}
+
             <ConfirmDialog
                 isOpen={showConfirm}
                 onClose={() => { setShowConfirm(false); setDeleteTeacher(null); }}
@@ -317,7 +510,7 @@ const TeacherList = ({ refreshKey }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RegisterForm = ({ onSuccess }) => {
-    const [form, setForm] = useState({ name: '', document: '', email: '', phone: '', password: '', role: 'docente' });
+    const [form, setForm] = useState({ lastName: '', firstName: '', email: '', phone: '', password: '', role: 'docente' });
     const [message, setMessage] = useState(null);
     const [loading, setLoading] = useState(false);
 
@@ -329,7 +522,7 @@ const RegisterForm = ({ onSuccess }) => {
         try {
             const res = await api.post('/users/register', form);
             setMessage({ type: 'success', text: res.data.message || 'Usuario registrado exitosamente' });
-            setForm({ name: '', document: '', email: '', phone: '', password: '', role: 'docente' });
+            setForm({ lastName: '', firstName: '', email: '', phone: '', password: '', role: 'docente' });
             onSuccess?.();
         } catch (err) {
             setMessage({ type: 'error', text: err.response?.data?.message || 'Error al registrar usuario' });
@@ -354,33 +547,32 @@ const RegisterForm = ({ onSuccess }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Nombre completo</label>
-                        <input type="text" name="name" value={form.name} onChange={handleChange} required
+                        <input type="text" name="lastName" value={form.lastName} onChange={handleChange} required
+                            placeholder="Apellidos"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm mb-2" />
+                        <input type="text" name="firstName" value={form.firstName} onChange={handleChange} required
+                            placeholder="Nombres"
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" placeholder="Nombre completo" />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Documento</label>
-                        <input type="text" name="document" value={form.document} onChange={handleChange} required
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" placeholder="Documento de identidad" />
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Correo electrónico</label>
                         <input type="email" name="email" value={form.email} onChange={handleChange} required
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" placeholder="correo@ejemplo.com" />
                     </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Teléfono (opcional)</label>
                         <input type="tel" name="phone" value={form.phone} onChange={handleChange}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" placeholder="Teléfono de contacto" />
                     </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Contraseña</label>
                         <input type="password" name="password" value={form.password} onChange={handleChange} required
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm" placeholder="Contraseña" />
                     </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Rol</label>
                         <select name="role" value={form.role} onChange={handleChange}
@@ -395,7 +587,7 @@ const RegisterForm = ({ onSuccess }) => {
                         className="bg-blue-700 hover:bg-blue-800 text-white font-medium py-2 px-5 rounded-lg transition disabled:opacity-50 text-sm">
                         {loading ? 'Registrando...' : 'Registrar usuario'}
                     </button>
-                    <button type="button" onClick={() => setForm({ name: '', document: '', email: '', phone: '', password: '', role: 'docente' })}
+                    <button type="button" onClick={() => setForm({ lastName: '', firstName: '', email: '', phone: '', password: '', role: 'docente' })}
                         className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-5 rounded-lg transition text-sm">
                         Limpiar
                     </button>
@@ -488,7 +680,7 @@ const PendingList = ({ refreshKey, onApproved }) => {
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
-                                {['Nombre','Documento','Correo','Teléfono','Rol','Fecha','Acciones'].map(h => (
+                                {['Nombre','Correo','Teléfono','Rol','Fecha','Acciones'].map(h => (
                                     <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                                 ))}
                             </tr>
@@ -497,7 +689,6 @@ const PendingList = ({ refreshKey, onApproved }) => {
                             {current.map(user => (
                                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-5 py-3 font-medium text-gray-800">{user.name}</td>
-                                    <td className="px-5 py-3 text-gray-600">{user.document}</td>
                                     <td className="px-5 py-3 text-gray-600">{user.email}</td>
                                     <td className="px-5 py-3 text-gray-500">{user.phone || '-'}</td>
                                     <td className="px-5 py-3">
@@ -505,7 +696,7 @@ const PendingList = ({ refreshKey, onApproved }) => {
                                             {user.role === 'admin' ? 'Administrador' : 'Docente'}
                                         </span>
                                     </td>
-                                    <td className="px-5 py-3 text-gray-500">{new Date(user.created_at).toLocaleDateString()}</td>
+                                    <td className="px-5 py-3 text-gray-500">{new Date(user.created_at).toLocaleDateString('es-CO')}</td>
                                     <td className="px-5 py-3">
                                         <div className="flex gap-2">
                                             <button onClick={() => approveUser(user.id)}

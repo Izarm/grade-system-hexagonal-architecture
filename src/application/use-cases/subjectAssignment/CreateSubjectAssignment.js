@@ -22,7 +22,21 @@ class CreateSubjectAssignment {
         if (!isElective && !groupId) {
             throw new Error('Para asignaciones regulares, debe seleccionar un grupo');
         }
-        
+
+        // Los grados de solo matrícula (preescolar) no llevan notas: no se pueden asignar materias
+        if (!isElective && groupId) {
+            const pool = require('../../../infrastructure/database/mysql');
+            const [rows] = await pool.query(
+                `SELECT gr.takes_grades, gr.name
+                 FROM \`groups\` g JOIN grades gr ON g.grade_id = gr.id
+                 WHERE g.id = ?`,
+                [groupId]
+            );
+            if (rows[0] && rows[0].takes_grades === 0) {
+                throw new Error(`El grado ${rows[0].name} es de solo matrícula y no lleva notas, no se le pueden asignar materias`);
+            }
+        }
+
         // Verificar duplicados solo para asignaciones regulares
         if (!isElective && groupId) {
             const existing = await this.assignmentRepository.findUnique(groupId, subjectId, academicYearId);

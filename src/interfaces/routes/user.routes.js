@@ -9,5 +9,6 @@ router.get('/teachers', controller.listTeachers);
 router.post('/register', controller.registerByAdmin);
 router.put('/:id', controller.updateTeacher);
 router.delete('/:id', controller.deleteTeacher);
+router.post('/:id/replace', controller.replaceTeacher);
 
 module.exports = router;

@@ -11,14 +11,17 @@ import Assignments from '../components/admin/Assignments';
 import Queries from '../components/admin/Queries';
 import Reports from '../components/admin/Reports';
 import Teachers from '../components/admin/Teachers';
+import AuditLogs from '../components/admin/AuditLogs';
+// ExtracurricularActivities, PendingDocuments, Promotion → tabs de Enrollments
+// History → tab de AcademicYears
 
 const menuSections = [
   {
     title: 'General',
     items: [
-      { id: 'dashboard',     label: 'Inicio' },
-      { id: 'students',      label: 'Estudiantes' },
-      { id: 'enrollments',   label: 'Matrículas' },
+      { id: 'dashboard',   label: 'Inicio' },
+      { id: 'students',    label: 'Estudiantes' },
+      { id: 'enrollments', label: 'Matrículas' },
     ],
   },
   {
@@ -31,16 +34,12 @@ const menuSections = [
     ],
   },
   {
-    title: 'Informes',
+    title: 'Informes y Sistema',
     items: [
-      { id: 'queries',       label: 'Consultas' },
-      { id: 'reports',       label: 'Reportes' },
-    ],
-  },
-  {
-    title: 'Usuarios',
-    items: [
-      { id: 'teachers', label: 'Docentes' },
+      { id: 'queries',   label: 'Consultas' },
+      { id: 'reports',   label: 'Reportes' },
+      { id: 'teachers',  label: 'Docentes' },
+      { id: 'auditLogs', label: 'Auditoría' },
     ],
   },
 ];
@@ -49,7 +48,7 @@ const components = {
   dashboard: DashboardStats, students: Students, enrollments: Enrollments,
   academicYears: AcademicYears, grades: Grades, subjects: Subjects,
   assignments: Assignments, queries: Queries, reports: Reports,
-  teachers: Teachers,
+  teachers: Teachers, auditLogs: AuditLogs,
 };
 
 const allItems = menuSections.flatMap(s => s.items);
@@ -177,9 +176,15 @@ const AdminDashboard = () => {
           </div>
         </header>
 
+        {/* Este contenedor NO debe llevar animación propia. Animar la opacidad
+            crea un contexto de apilamiento, y entonces todo lo que la pantalla
+            dibuje con position:fixed —los avisos de "guardado", los modales—
+            queda encerrado aquí dentro y se pinta por detrás de la barra azul:
+            el aviso verde solo se veía asomando por arriba a la derecha.
+            Las tarjetas del panel de inicio sí animan, cada una por su cuenta. */}
         <main className="flex-1 p-7 overflow-auto">
           {ActiveComponent && (
-            <div key={activeTab} className="animate-fade-up">
+            <div key={activeTab}>
               <ActiveComponent />
             </div>
           )}

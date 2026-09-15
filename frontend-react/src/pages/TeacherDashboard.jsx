@@ -136,9 +136,11 @@ const TeacherDashboard = () => {
           </div>
         </header>
 
+        {/* Sin animación aquí, por lo mismo que en el panel de administración:
+            atrapaba los avisos y los modales detrás de la barra superior. */}
         <main className="flex-1 p-7 overflow-auto">
           {ActiveComponent && (
-            <div key={activeTab} className="animate-fade-up">
+            <div key={activeTab}>
               <ActiveComponent />
             </div>
           )}

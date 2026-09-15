@@ -1,4 +1,4 @@
-const pool = require('../../infrastructure/database/mysql');
+﻿const pool = require('../../infrastructure/database/mysql');
 
 exports.getReviews = async (req, res) => {
     try {
@@ -66,7 +66,7 @@ exports.saveReview = async (req, res) => {
             );
         }
         
-        res.json({ success: true, message: 'Reseña guardada correctamente' });
+        res.json({ success: true, message: 'ReseÃ±a guardada correctamente' });
     } catch (error) {
         console.error('Error en saveReview:', error);
         res.status(500).json({ message: error.message });

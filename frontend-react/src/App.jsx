@@ -4,12 +4,22 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { RefreshProvider } from './contexts/RefreshContext';
 import { setGlobalErrorHandler } from './api/client';
 import { useNotification } from './contexts/NotificationContext';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import AdminDashboard from './pages/AdminDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
+
+const AdminDashboard  = lazy(() => import('./pages/AdminDashboard'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="text-center">
+      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+      <p className="text-sm text-gray-500">Cargando...</p>
+    </div>
+  </div>
+);
 
 const ErrorHandlerSetup = () => {
   const { showError } = useNotification();
@@ -22,7 +32,11 @@ const ErrorHandlerSetup = () => {
 };
 
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Mientras se confirma la sesión con el servidor no se decide nada: sin esto
+  // se mandaba al login por un instante aunque la sesión fuera válida.
+  if (loading) return <PageLoader />;
 
   if (!user) {
     return (
@@ -63,7 +77,9 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
             <ErrorHandlerSetup />
-            <AppRoutes />
+            <Suspense fallback={<PageLoader />}>
+              <AppRoutes />
+            </Suspense>
           </NotificationProvider>
         </AuthProvider>
       </RefreshProvider>

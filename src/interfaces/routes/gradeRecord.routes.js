@@ -9,7 +9,7 @@ router.use(injectActiveYear);
 
 router.get('/teacher-assignments', authorize(['docente', 'admin']), controller.getTeacherAssignments);
 router.get('/grades', authorize(['docente', 'admin']), controller.getGrades);
-router.get('/student-report', authorize(['docente', 'admin', 'estudiante']), controller.getStudentReport);
+router.get('/student-report', authorize(['docente', 'admin']), controller.getStudentReport);
 router.post('/grades', authorize(['docente', 'admin']), checkYearNotClosed, controller.saveGrade);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/client';
+import CampoFecha from '../common/CampoFecha';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { useActiveAcademicYear } from '../../hooks/useActiveAcademicYear';
 
@@ -32,6 +33,11 @@ const Reports = () => {
     // Estado para reporte masivo (seccion 3)
     const [massiveReportType, setMassiveReportType] = useState('period');
     const [selectedPeriodMassive, setSelectedPeriodMassive] = useState('');
+
+    // Estado para libro de calificaciones (seccion 5)
+    const [selectedGradeBook, setSelectedGradeBook] = useState('');
+    const [resolutionBook, setResolutionBook] = useState('');
+    const [resolutionDateBook, setResolutionDateBook] = useState('');
     
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
@@ -54,6 +60,15 @@ const Reports = () => {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^\w\s]/gi, '')
             .replace(/\s+/g, '_');
+    };
+
+    // Cada opci\u00f3n de "grado" es en realidad una secci\u00f3n (grupo). Devuelve
+    // { id: groupId, gradeId, name } para construir las URLs de reporte.
+    const sectionById = (id) => grades.find(g => g.id.toString() === (id ?? '').toString());
+    // Sufijo de query para los reportes que filtran por grado + secci\u00f3n.
+    const gradeQuery = (id) => {
+        const sec = sectionById(id);
+        return sec ? `gradeId=${sec.gradeId}&groupId=${sec.id}` : `gradeId=${id}`;
     };
 
     const downloadFile = async (url, filename) => {
@@ -110,21 +125,58 @@ const Reports = () => {
         }
     };
 
+    // Genera todos los boletines en un solo documento y abre el diálogo de impresión
+    const printReports = async (url) => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${api.defaults.baseURL}${url}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                let msg = 'Error al generar los boletines';
+                try { msg = (await response.json()).message || msg; } catch (_) {}
+                throw new Error(msg);
+            }
+            const html = await response.text();
+            const blob = new Blob([html], { type: 'text/html' });
+            const blobUrl = window.URL.createObjectURL(blob);
+            const win = window.open(blobUrl, '_blank');
+            if (!win) {
+                showMessage('Permite las ventanas emergentes para imprimir', 'error');
+            }
+            // Liberar el objeto tras un momento (el navegador ya lo cargó)
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+        } catch (error) {
+            console.error('Error imprimiendo boletines:', error);
+            showMessage(error.message || 'Error al generar los boletines', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Cargar grados
     useEffect(() => {
+        if (!activeYear) return;
         const loadGrades = async () => {
-            const gradesRes = await api.get('/grades');
-            const gradesData = extractData(gradesRes.data);
-            gradesData.sort((a, b) => {
-                const numA = parseInt(a.name) || 0;
-                const numB = parseInt(b.name) || 0;
-                if (numA !== numB) return numA - numB;
-                return a.name.localeCompare(b.name);
+            const res = await api.get(`/groups?academicYearId=${activeYear.id}`);
+            const groupsData = extractData(res.data);
+            const gradesList = [];
+            groupsData.forEach(g => {
+                // Excluir grados de solo matrícula (preescolar): no generan boletín de notas
+                if (g.takes_grades === 0) return;
+                // Cada sección (grupo) es una opción independiente en los reportes.
+                const displayName = g.name && g.name !== g.grade_name
+                    ? `${g.grade_name} ${g.name}`
+                    : g.grade_name;
+                gradesList.push({ id: g.id, gradeId: g.grade_id, name: displayName });
             });
-            setGrades(gradesData);
+            gradesList.sort((a, b) =>
+                (parseInt(a.name) - parseInt(b.name)) || a.name.localeCompare(b.name));
+            setGrades(gradesList);
         };
         loadGrades();
-    }, [refreshKey]);
+    }, [refreshKey, activeYear?.id]);
 
     // Cargar periodos
     useEffect(() => {
@@ -144,29 +196,22 @@ const Reports = () => {
         }
     }, [activeYear]);
 
-    // Cargar estudiantes por grado
+    // Cargar estudiantes de la sección (grupo) seleccionada
     useEffect(() => {
         if (selectedGradeStudent && activeYear) {
             const loadStudents = async () => {
                 setLoading(true);
                 try {
-                    const groupsRes = await api.get(`/groups/by-grade/${selectedGradeStudent}`);
-                    const groups = extractData(groupsRes.data);
-                    const groupIds = groups.map(g => g.id);
-                    
-                    if (groupIds.length === 0) {
+                    // selectedGradeStudent es el id del grupo (sección)
+                    const enrollmentsRes = await api.get(`/enrollments?groupId=${selectedGradeStudent}&academicYearId=${activeYear.id}`);
+                    const allEnrollments = extractData(enrollmentsRes.data);
+
+                    if (allEnrollments.length === 0) {
                         setStudentsByGrade([]);
                         setLoading(false);
                         return;
                     }
-                    
-                    let allEnrollments = [];
-                    for (const groupId of groupIds) {
-                        const enrollmentsRes = await api.get(`/enrollments?groupId=${groupId}&academicYearId=${activeYear.id}`);
-                        const enrollments = extractData(enrollmentsRes.data);
-                        allEnrollments = [...allEnrollments, ...enrollments];
-                    }
-                    
+
                     const studentsData = await Promise.all(allEnrollments.map(async e => {
                         const sRes = await api.get(`/students/${e.student_id}`);
                         return sRes.data;
@@ -246,8 +291,9 @@ const Reports = () => {
             showMessage('Seleccione grado y período', 'error');
             return;
         }
-        const fileName = `Reporte_Notas_Cognitivas_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.xlsx`;
-        downloadFile(`/reports/grade-report-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`, fileName);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        const fileName = `Reporte_Notas_Cognitivas_${gName}_Periodo_${selectedPeriodTable}.xlsx`;
+        downloadFile(`/reports/grade-report-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`, fileName);
     };
 
     const handleDownloadAttitudinalNotes = () => {
@@ -255,8 +301,9 @@ const Reports = () => {
             showMessage('Seleccione grado y período', 'error');
             return;
         }
-        const fileName = `Reporte_Notas_Actitudinales_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.xlsx`;
-        downloadFile(`/reports/grade-report-attitudinal-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`, fileName);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        const fileName = `Reporte_Notas_Actitudinales_${gName}_Periodo_${selectedPeriodTable}.xlsx`;
+        downloadFile(`/reports/grade-report-attitudinal-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`, fileName);
     };
 
     const handleDownloadElectivesNotes = () => {
@@ -264,24 +311,28 @@ const Reports = () => {
             showMessage('Seleccione grado y período', 'error');
             return;
         }
-        const fileName = `Reporte_Notas_Electivas_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.xlsx`;
-        downloadFile(`/reports/grade-report-electives-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`, fileName);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        const fileName = `Reporte_Notas_Electivas_${gName}_Periodo_${selectedPeriodTable}.xlsx`;
+        downloadFile(`/reports/grade-report-electives-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`, fileName);
     };
 
     const handleDownloadCognitiveNotesWord = () => {
         if (!activeYear || !selectedGradeTable || !selectedPeriodTable) { showMessage('Seleccione grado y período', 'error'); return; }
-        downloadFile(`/reports/grade-report-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`,
-            `Reporte_Notas_Cognitivas_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.docx`);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        downloadFile(`/reports/grade-report-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`,
+            `Reporte_Notas_Cognitivas_${gName}_Periodo_${selectedPeriodTable}.docx`);
     };
     const handleDownloadAttitudinalNotesWord = () => {
         if (!activeYear || !selectedGradeTable || !selectedPeriodTable) { showMessage('Seleccione grado y período', 'error'); return; }
-        downloadFile(`/reports/grade-report-attitudinal-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`,
-            `Reporte_Notas_Actitudinales_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.docx`);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        downloadFile(`/reports/grade-report-attitudinal-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`,
+            `Reporte_Notas_Actitudinales_${gName}_Periodo_${selectedPeriodTable}.docx`);
     };
     const handleDownloadElectivesNotesWord = () => {
         if (!activeYear || !selectedGradeTable || !selectedPeriodTable) { showMessage('Seleccione grado y período', 'error'); return; }
-        downloadFile(`/reports/grade-report-electives-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&gradeId=${selectedGradeTable}`,
-            `Reporte_Notas_Electivas_Grado_${selectedGradeTable}_Periodo_${selectedPeriodTable}.docx`);
+        const gName = cleanFileName(sectionById(selectedGradeTable)?.name || selectedGradeTable);
+        downloadFile(`/reports/grade-report-electives-word?academicYearId=${activeYear.id}&periodId=${selectedPeriodTable}&${gradeQuery(selectedGradeTable)}`,
+            `Reporte_Notas_Electivas_${gName}_Periodo_${selectedPeriodTable}.docx`);
     };
 
     // ==================== SECCION 3: REPORTE POR GRADO (todos los estudiantes del grado) ====================
@@ -301,11 +352,28 @@ const Reports = () => {
         if (gradeReportType === 'period') {
             const selectedPeriodObj = periods.find(p => p.id.toString() === selectedPeriodGrade);
             const periodOrder = selectedPeriodObj ? (selectedPeriodObj.order || '1') : '1';
-            const fileName = `Boletines_Grado_${gradeName}_Periodo_${periodOrder}.zip`;
-            downloadZip(`/reports/bulk-word-reports?academicYearId=${activeYear.id}&gradeId=${selectedGradeForGroup}&type=period&periodId=${selectedPeriodGrade}`, fileName);
+            const fileName = `Boletines_${gradeName}_Periodo_${periodOrder}.zip`;
+            downloadZip(`/reports/bulk-word-reports?academicYearId=${activeYear.id}&${gradeQuery(selectedGradeForGroup)}&type=period&periodId=${selectedPeriodGrade}`, fileName);
         } else {
-            const fileName = `Boletines_Grado_${gradeName}_Final.zip`;
-            downloadZip(`/reports/bulk-word-reports?academicYearId=${activeYear.id}&gradeId=${selectedGradeForGroup}&type=final`, fileName);
+            const fileName = `Boletines_${gradeName}_Final.zip`;
+            downloadZip(`/reports/bulk-word-reports?academicYearId=${activeYear.id}&${gradeQuery(selectedGradeForGroup)}&type=final`, fileName);
+        }
+    };
+
+    // Imprimir todos los boletines de un grado
+    const handlePrintGrade = () => {
+        if (!activeYear || !selectedGradeForGroup) {
+            showMessage('Seleccione un grado', 'error');
+            return;
+        }
+        if (gradeReportType === 'period' && !selectedPeriodGrade) {
+            showMessage('Seleccione un período', 'error');
+            return;
+        }
+        if (gradeReportType === 'period') {
+            printReports(`/reports/bulk-print?academicYearId=${activeYear.id}&${gradeQuery(selectedGradeForGroup)}&type=period&periodId=${selectedPeriodGrade}`);
+        } else {
+            printReports(`/reports/bulk-print?academicYearId=${activeYear.id}&${gradeQuery(selectedGradeForGroup)}&type=final`);
         }
     };
 
@@ -315,8 +383,9 @@ const Reports = () => {
             return;
         }
         
-        const fileName = `Reporte_Notas_Grado_${selectedGradeForGroup}_Periodo_${selectedPeriodGrade}.xlsx`;
-        downloadFile(`/reports/grade-report-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodGrade}&gradeId=${selectedGradeForGroup}`, fileName);
+        const gName = cleanFileName(sectionById(selectedGradeForGroup)?.name || selectedGradeForGroup);
+        const fileName = `Reporte_Notas_${gName}_Periodo_${selectedPeriodGrade}.xlsx`;
+        downloadFile(`/reports/grade-report-excel?academicYearId=${activeYear.id}&periodId=${selectedPeriodGrade}&${gradeQuery(selectedGradeForGroup)}`, fileName);
     };
 
     // ==================== SECCION 4: REPORTE MASIVO (todos los grados) ====================
@@ -341,6 +410,23 @@ const Reports = () => {
         }
     };
 
+    // Imprimir todos los boletines de todos los grados
+    const handlePrintMassive = () => {
+        if (!activeYear) {
+            showMessage('No hay año lectivo activo', 'error');
+            return;
+        }
+        if (massiveReportType === 'period' && !selectedPeriodMassive) {
+            showMessage('Seleccione un período', 'error');
+            return;
+        }
+        if (massiveReportType === 'period') {
+            printReports(`/reports/bulk-print?academicYearId=${activeYear.id}&type=massive_period&periodId=${selectedPeriodMassive}`);
+        } else {
+            printReports(`/reports/bulk-print?academicYearId=${activeYear.id}&type=massive_final`);
+        }
+    };
+
     const handleGenerateMassiveExcel = () => {
         if (!activeYear) {
             showMessage('No hay año lectivo activo', 'error');
@@ -355,6 +441,23 @@ const Reports = () => {
             ? `Reportes_Excel_Masivos_Periodo_${selectedPeriodMassive}.zip` 
             : 'Reportes_Excel_Masivos_Final.zip';
         downloadZip(`/reports/bulk-excel-reports?academicYearId=${activeYear.id}&type=massive_${massiveReportType}&periodId=${selectedPeriodMassive}`, fileName);
+    };
+
+    const handleGenerateGradeBook = () => {
+        if (!activeYear || !selectedGradeBook) {
+            showMessage('Seleccione un grado', 'error');
+            return;
+        }
+        if (!resolutionBook.trim() || !resolutionDateBook) {
+            showMessage('Ingrese la resolución y la fecha de resolución', 'error');
+            return;
+        }
+        const gradeName = cleanFileName(sectionById(selectedGradeBook)?.name || selectedGradeBook);
+        downloadFile(
+            `/reports/grade-book-word?academicYearId=${activeYear.id}&${gradeQuery(selectedGradeBook)}` +
+            `&resolution=${encodeURIComponent(resolutionBook.trim())}&resolutionDate=${encodeURIComponent(resolutionDateBook)}`,
+            `Libro_Calificaciones_${gradeName}.docx`
+        );
     };
 
     if (yearLoading) return <div className="flex justify-center py-8">Cargando año activo...</div>;
@@ -491,7 +594,11 @@ const Reports = () => {
                     )}
                 </div>
                 
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                    <button onClick={handlePrintGrade} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50 inline-flex items-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        Generar e imprimir todos
+                    </button>
                     <button onClick={handleGenerateGradeWord} className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded text-sm">Generar Word (ZIP)</button>
                     <button onClick={handleGenerateGradeExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">Generar Excel</button>
                 </div>
@@ -520,16 +627,58 @@ const Reports = () => {
                     )}
                 </div>
                 
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                    <button onClick={handlePrintMassive} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50 inline-flex items-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        Generar e imprimir todos
+                    </button>
                     <button onClick={handleGenerateMassiveWord} className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded text-sm">Generar Word (ZIP)</button>
                     <button onClick={handleGenerateMassiveExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">Generar Excel (ZIP)</button>
                 </div>
             </div>
 
+            {/* ==================== SECCION 5: LIBRO DE CALIFICACIONES ==================== */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 card-hover p-6">
+                <h2 className="text-[15px] font-semibold text-gray-800 mb-4">5. Libro de calificaciones</h2>
+                <p className="text-xs text-gray-500 mb-4">Genera el libro de calificaciones completo del grado (una hoja por estudiante) para descargar e imprimir</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Grado</label>
+                        <select value={selectedGradeBook} onChange={(e) => setSelectedGradeBook(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">Seleccione grado</option>
+                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Resolución</label>
+                        <input
+                            type="text"
+                            value={resolutionBook}
+                            onChange={(e) => setResolutionBook(e.target.value)}
+                            placeholder="N° de resolución"
+                            className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Fecha de resolución</label>
+                        <CampoFecha
+                            value={resolutionDateBook}
+                            onChange={setResolutionDateBook}
+                            className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex gap-3">
+                    <button onClick={handleGenerateGradeBook} className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded text-sm">Generar libro (Word)</button>
+                </div>
+            </div>
+
             {/* Modal selección de estudiante */}
             {showStudentModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                             <h3 className="text-[15px] font-semibold text-gray-800">
                                 Seleccionar estudiante

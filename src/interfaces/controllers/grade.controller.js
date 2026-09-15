@@ -15,19 +15,10 @@ const get = new GetGrade(repo);
 
 exports.create = async (req, res) => {
     try {
-        const { name, students } = req.body;
-        
-        // Crear el grado
-        const grade = await create.execute(name);
-        
-        // Si hay estudiantes, crearlos y matricularlos
-        if (students && students.length > 0) {
-            await repo.createStudentsAndEnrollments(grade.id, students);
-        }
-        
+        const { name, students, academicYearId } = req.body;
+        const grade = await create.execute(name, students || [], academicYearId || null);
         res.status(201).json(grade);
     } catch (error) {
-        console.error('Error en create grade:', error);
         res.status(400).json({ message: error.message });
     }
 };
@@ -52,7 +43,8 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const grades = await list.execute();
+        const { academicYearId } = req.query;
+        const grades = await repo.findAll(academicYearId || null);
         res.json(grades);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -105,45 +97,50 @@ exports.getHeadTeacherReport = async (req, res) => {
             [academicYearId]
         );
         
-        const reports = await Promise.all(grades.map(async (grade) => {
-            const [students] = await pool.query(
-                `SELECT DISTINCT s.id, s.full_name, s.student_code
+        const gradeIds = grades.map(g => g.id);
+
+        const [[allStudents], [allSubjects], [allGradesData]] = await Promise.all([
+            pool.query(
+                `SELECT DISTINCT s.id, s.full_name, s.student_code, grp.grade_id
                  FROM enrollments e
                  JOIN students s ON e.student_id = s.id
-                 WHERE e.group_id = ? AND e.academic_year_id = ? AND e.deleted_at IS NULL
+                 JOIN \`groups\` grp ON e.group_id = grp.id
+                 WHERE grp.grade_id IN (?) AND e.academic_year_id = ?
+                   AND e.deleted_at IS NULL AND s.deleted_at IS NULL AND grp.deleted_at IS NULL
                  ORDER BY s.full_name`,
-                [grade.id, academicYearId]
-            );
-            
-            const [subjects] = await pool.query(
-                `SELECT DISTINCT s.id, s.name, s.area
+                [gradeIds, academicYearId]
+            ),
+            pool.query(
+                `SELECT DISTINCT sub.id, sub.name, sub.area, grp.grade_id
                  FROM subject_assignments sa
-                 JOIN subjects s ON sa.subject_id = s.id
-                 WHERE sa.group_id = ? AND sa.deleted_at IS NULL
-                 ORDER BY s.name`,
-                [grade.id]
-            );
-            
-            const [gradesData] = await pool.query(
-                `SELECT gr.enrollment_id, gr.subject_assignment_id, gr.period_id, 
+                 JOIN subjects sub ON sa.subject_id = sub.id
+                 JOIN \`groups\` grp ON sa.group_id = grp.id
+                 WHERE grp.grade_id IN (?) AND sa.deleted_at IS NULL AND grp.deleted_at IS NULL
+                 ORDER BY sub.name`,
+                [gradeIds]
+            ),
+            pool.query(
+                `SELECT gr.enrollment_id, gr.subject_assignment_id, gr.period_id,
                         gr.normal_note, gr.aptitudinal_note, gr.average,
-                        e.student_id, sa.subject_id
+                        e.student_id, sa.subject_id, grp.grade_id
                  FROM grade_records gr
                  JOIN enrollments e ON gr.enrollment_id = e.id
                  JOIN subject_assignments sa ON gr.subject_assignment_id = sa.id
-                 WHERE e.group_id = ? AND e.academic_year_id = ?
+                 JOIN \`groups\` grp ON e.group_id = grp.id
+                 WHERE grp.grade_id IN (?) AND e.academic_year_id = ?
+                   AND gr.deleted_at IS NULL AND grp.deleted_at IS NULL
                  GROUP BY gr.id`,
-                [grade.id, academicYearId]
-            );
-            
-            return {
-                gradeId: grade.id,
-                gradeName: grade.name,
-                students,
-                subjects,
-                grades: gradesData,
-                periods
-            };
+                [gradeIds, academicYearId]
+            ),
+        ]);
+
+        const reports = grades.map((grade) => ({
+            gradeId: grade.id,
+            gradeName: grade.name,
+            students: allStudents.filter(s => s.grade_id === grade.id),
+            subjects: allSubjects.filter(s => s.grade_id === grade.id),
+            grades: allGradesData.filter(g => g.grade_id === grade.id),
+            periods,
         }));
         
         res.json({
@@ -152,7 +149,6 @@ exports.getHeadTeacherReport = async (req, res) => {
             academicYearId
         });
     } catch (error) {
-        console.error('Error en getHeadTeacherReport:', error);
         res.status(500).json({ message: error.message });
     }
 };

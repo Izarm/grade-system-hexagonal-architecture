@@ -62,7 +62,7 @@ exports.list = async (req, res) => {
 
         res.json(periods);
     } catch (error) {
-        console.error('Error en list periods:', error);
+
         res.status(500).json({ message: error.message });
     }
 };

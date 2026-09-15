@@ -19,18 +19,25 @@ const cell = (text, w, { bold = false, center = false, sz = 16 } = {}) =>
 class GenerateGradeReportAttitudinalWord {
     constructor(pool) { this.pool = pool; }
 
-    async execute({ academicYearId, periodId, gradeId }) {
+    async execute({ academicYearId, periodId, gradeId, groupId }) {
         const [[period]]   = await this.pool.query(`SELECT id, name, \`order\` FROM periods WHERE id = ? AND deleted_at IS NULL`, [periodId]);
         if (!period) throw new Error('Período no encontrado');
         const [[yearRow]]  = await this.pool.query(`SELECT name FROM academic_years WHERE id = ?`, [academicYearId]);
         const [[gradeRow]] = await this.pool.query(`SELECT name FROM grades WHERE id = ? AND deleted_at IS NULL`, [gradeId]);
-        const [[htRow]]    = await this.pool.query(
-            `SELECT u.name as ht FROM grades g LEFT JOIN users u ON g.head_teacher_id = u.id WHERE g.id = ?`, [gradeId]);
 
-        const [groups] = await this.pool.query(
-            `SELECT id FROM \`groups\` WHERE grade_id = ? AND deleted_at IS NULL`, [gradeId]);
+        // Si se indica una sección (grupo), el reporte es solo de esa sección.
+        const [groups] = groupId
+            ? await this.pool.query(`SELECT id, name, head_teacher_id FROM \`groups\` WHERE id = ? AND deleted_at IS NULL`, [groupId])
+            : await this.pool.query(`SELECT id, name, head_teacher_id FROM \`groups\` WHERE grade_id = ? AND deleted_at IS NULL`, [gradeId]);
         const groupIds = groups.map(g => g.id);
         if (!groupIds.length) throw new Error('Sin grupos para el grado');
+
+        const htIds = groups.map(g => g.head_teacher_id).filter(Boolean);
+        let htRow = null;
+        if (htIds.length) {
+            const [htRows] = await this.pool.query(`SELECT name AS ht FROM users WHERE id = ? LIMIT 1`, [htIds[0]]);
+            htRow = htRows[0] || null;
+        }
 
         const [subjects] = await this.pool.query(
             `SELECT DISTINCT sa.id, s.id as subject_id, s.name
@@ -119,7 +126,7 @@ class GenerateGradeReportAttitudinalWord {
                 new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: 'COLEGIO SAN JOSE DE TARBES', bold: true, size: 28, font: 'Arial' })] }),
                 new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: 'INFORME NOTAS PROCESO ACTITUDINAL', bold: true, size: 22, font: 'Arial' })] }),
                 new Paragraph({ spacing: { after: 40 }, children: [
-                    new TextRun({ text: `Año lectivo: ${yearRow?.name || ''}   ·   Período: ${period.order} - ${period.name}   ·   Grado: ${gradeRow?.name || ''}   ·   Director: ${htRow?.ht || 'No asignado'}`, size: 18, font: 'Arial' })
+                    new TextRun({ text: `Año lectivo: ${yearRow?.name || ''}   ·   Período: ${period.order} - ${period.name}   ·   Grado: ${gradeRow?.name || ''}${groups.length ? ' ' + groups.map(g => g.name).join(', ') : ''}   ·   Director: ${htRow?.ht || 'No asignado'}`, size: 18, font: 'Arial' })
                 ]}),
                 table,
                 new Paragraph({ spacing: { before: 200 }, children: [

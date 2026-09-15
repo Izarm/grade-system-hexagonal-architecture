@@ -35,27 +35,25 @@ class GenerateGradeReportElectivesExcel {
         let groups = [];
         if (groupId) {
             const [groupRows] = await this.pool.query(
-                `SELECT id, name, grade_id FROM \`groups\` WHERE id = ? AND deleted_at IS NULL`,
+                `SELECT id, name, grade_id, head_teacher_id FROM \`groups\` WHERE id = ? AND deleted_at IS NULL`,
                 [groupId]
             );
             groups = groupRows;
         } else {
             const [groupRows] = await this.pool.query(
-                `SELECT id, name, grade_id FROM \`groups\` WHERE grade_id = ? AND deleted_at IS NULL`,
+                `SELECT id, name, grade_id, head_teacher_id FROM \`groups\` WHERE grade_id = ? AND deleted_at IS NULL`,
                 [gradeId]
             );
             groups = groupRows;
         }
 
-        // 5. Obtener director de grado
-        const [headTeacherRows] = await this.pool.query(
-            `SELECT u.name as head_teacher_name
-             FROM grades g
-             LEFT JOIN users u ON g.head_teacher_id = u.id
-             WHERE g.id = ? AND g.deleted_at IS NULL`,
-            [gradeId]
-        );
-        const headTeacherName = headTeacherRows[0]?.head_teacher_name || 'No asignado';
+        // 5. Obtener director de grado (de la sección; el director se asigna por grupo)
+        let headTeacherName = 'No asignado';
+        const htIds = groups.map(g => g.head_teacher_id).filter(Boolean);
+        if (htIds.length) {
+            const [htRows] = await this.pool.query(`SELECT name FROM users WHERE id = ? LIMIT 1`, [htIds[0]]);
+            headTeacherName = htRows[0]?.name || 'No asignado';
+        }
 
         // 6. Obtener SOLO materias electivas (group_id IS NULL — son de toda la institución)
         const groupIds = groups.map(g => g.id);
@@ -180,7 +178,7 @@ class GenerateGradeReportElectivesExcel {
 
         // Fila 6 - Curso
         worksheet.mergeCells(6, 1, 6, totalColumns);
-        worksheet.getCell(6, 1).value = `Curso : ${grade.name}`;
+        worksheet.getCell(6, 1).value = `Curso : ${groups.length ? grade.name + ' ' + groups.map(g => g.name).join(', ') : grade.name}`;
         worksheet.getCell(6, 1).alignment = { horizontal: 'left' };
 
         // Fila 7 - Director

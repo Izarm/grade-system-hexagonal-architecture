@@ -22,11 +22,16 @@ class GradeRecordRepository {
             if (existing.length > 0) {
                 const old = existing[0];
                 const id = old.id;
+                // Solo actualizar campos que vienen con valor; preservar los existentes con COALESCE
                 await connection.query(
                     `UPDATE grade_records
-                     SET normal_note = ?, aptitudinal_note = ?, absences = ?, average = ?, is_elective = ?, updated_at = NOW()
+                     SET normal_note      = COALESCE(?, normal_note),
+                         aptitudinal_note = COALESCE(?, aptitudinal_note),
+                         absences         = COALESCE(?, absences),
+                         average          = COALESCE(?, average),
+                         is_elective      = ?, updated_at = NOW()
                      WHERE id = ? AND deleted_at IS NULL`,
-                    [normalNote, aptitudinalNote, absences, average, isElective || false, id]
+                    [normalNote ?? null, aptitudinalNote ?? null, absences ?? null, average ?? null, isElective || false, id]
                 );
 
                 // Registrar auditoría por cada campo que cambió

@@ -2,13 +2,14 @@
 import api from '../../api/client';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { useRefresh } from '../../contexts/RefreshContext';
+import SkeletonTable from '../common/SkeletonTable';
 
 const Subjects = () => {
     const { refreshKey, refresh } = useRefresh();
     const [subjects, setSubjects] = useState([]);
     const [form, setForm] = useState({ id: '', name: '', area: '' });
     const [message, setMessage] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [showConfirm, setShowConfirm] = useState(false);
     const [subjectToDelete, setSubjectToDelete] = useState(null);
     const [activeTab, setActiveTab] = useState('create');
@@ -21,14 +22,16 @@ const Subjects = () => {
     const totalPages = Math.ceil(subjects.length / itemsPerPage);
 
     const loadSubjects = async (resetPage = true) => {
+        setLoading(true);
         try {
             const res = await api.get('/subjects');
             const data = Array.isArray(res.data) ? res.data : (res.data.data || []);
             setSubjects(data);
             if (resetPage) setCurrentPage(1);
-        } catch (error) {
-            console.error('Error cargando asignaturas:', error);
+        } catch {
             setSubjects([]);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -212,11 +215,17 @@ const Subjects = () => {
                                     <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                                 </tr>
                             </thead>
+                            {loading ? (
+                                <SkeletonTable rows={5} cols={3} />
+                            ) : (
                             <tbody className="divide-y divide-gray-50">
                                 {currentSubjects.length === 0 ? (
                                     <tr>
-                                        <td colSpan="3" className="px-5 py-8 text-center text-gray-400 text-sm">
-                                            No hay asignaturas registradas
+                                        <td colSpan="3" className="px-5 py-12 text-center">
+                                            <div className="flex flex-col items-center gap-2 text-gray-400">
+                                                <p className="text-sm font-medium text-gray-500">No hay asignaturas registradas</p>
+                                                <p className="text-xs">Crea la primera asignatura con el formulario de la izquierda</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
@@ -252,6 +261,7 @@ const Subjects = () => {
                                     ))
                                 )}
                             </tbody>
+                            )}
                         </table>
                     </div>
 

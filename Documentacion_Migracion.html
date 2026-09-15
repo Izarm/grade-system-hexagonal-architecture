@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4; margin: 16mm 18mm 14mm 18mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        color: #1a1a1a; font-size: 11pt; line-height: 1.42; text-align: justify;
+    }
+    .cover {
+        height: 175mm; display: flex; flex-direction: column; justify-content: center;
+        text-align: center; page-break-after: always;
+        border-top: 4px solid #1d4ed8; border-bottom: 4px solid #1d4ed8;
+    }
+    .cover .school { font-size: 13pt; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 28px; }
+    .cover h1 { font-size: 30pt; font-weight: normal; color: #1d4ed8; line-height: 1.2; }
+    .cover .sub { font-size: 14pt; font-style: italic; color: #444; margin-top: 16px; }
+    .cover .divider { width: 90px; height: 2px; background: #1d4ed8; margin: 26px auto; }
+    .cover .meta { font-size: 11pt; color: #666; margin-top: 6px; }
+
+    h2 {
+        font-size: 15pt; color: #1d4ed8; font-weight: normal;
+        margin: 16px 0 3px 0; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1;
+        page-break-after: avoid;
+    }
+    h2 .n { font-weight: bold; color: #1a1a1a; }
+    h3 { font-size: 12pt; color: #1a1a1a; margin: 10px 0 2px 0; page-break-after: avoid; }
+    p { margin-bottom: 6px; }
+    p.intro { margin-bottom: 7px; }
+    ol, ul { margin: 4px 0 8px 24px; }
+    li { margin-bottom: 3px; }
+    b, strong { color: #111; }
+    em { color: #1d4ed8; font-style: italic; }
+    code { font-family: Consolas, monospace; font-size: 9.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; color: #b91c1c; }
+
+    .nota {
+        margin: 8px 0; padding: 7px 12px; border-left: 3px solid #1d4ed8;
+        background: #f6f8fc; font-size: 10.5pt; text-align: left;
+    }
+    .nota .lbl { font-weight: bold; font-variant: small-caps; color: #1d4ed8; letter-spacing: .5px; }
+
+    .toc-item { display: flex; justify-content: space-between; border-bottom: 1px dotted #bbb; padding: 3px 0; font-size: 11pt; }
+    .toc-item span:first-child b { color: #1d4ed8; }
+
+    table.t { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10pt; text-align: left; }
+    table.t th, table.t td { border: 1px solid #cbd5e1; padding: 5px 9px; vertical-align: top; }
+    table.t th { background: #1d4ed8; color: #fff; font-weight: normal; }
+    table.t tr:nth-child(even) td { background: #f8fafc; }
+    .num-cell { text-align: right; font-family: Consolas, monospace; }
+
+    .footer-final { margin-top: 18px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 10pt; color: #666; text-align: center; font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+    <div class="school">Colegio San José de Tarbes</div>
+    <h1>Migración e Integración<br>de Datos</h1>
+    <div class="sub">Documentación técnica del proceso</div>
+    <div class="divider"></div>
+    <div class="meta">Sistema de Gestión de Notas</div>
+    <div class="meta">Del sistema anterior (Laravel / MariaDB) al nuevo sistema (Node.js / MySQL)</div>
+    <div class="meta">Fecha: 2 de julio de 2026</div>
+</div>
+
+<!-- CONTENIDO -->
+<h2><span class="n">Contenido</span></h2>
+<div class="toc-item"><span><b>1.</b> Objetivo y alcance</span><span>1</span></div>
+<div class="toc-item"><span><b>2.</b> Sistemas de origen y destino</span><span>1</span></div>
+<div class="toc-item"><span><b>3.</b> Estrategia general de migración</span><span>1</span></div>
+<div class="toc-item"><span><b>4.</b> Detalle de la migración por entidad</span><span>2</span></div>
+<div class="toc-item"><span><b>5.</b> Integración de matrículas históricas</span><span>3</span></div>
+<div class="toc-item"><span><b>6.</b> Ajustes posteriores (post-migración)</span><span>3</span></div>
+<div class="toc-item"><span><b>7.</b> Resultados finales</span><span>4</span></div>
+
+<!-- 1 -->
+<h2><span class="n">1. Objetivo y alcance</span></h2>
+<p class="intro">El objetivo de este proceso fue trasladar la información académica y administrativa del antiguo sistema del Colegio San José de Tarbes hacia la nueva plataforma de gestión de notas, conservando la integridad de los datos y adaptándolos a la nueva estructura.</p>
+<p>El alcance incluyó la migración de usuarios (administradores y docentes), estudiantes, grados y grupos, directores de grado, matrículas del año en curso, actividades extracurriculares y documentos pendientes; así como la integración de las matrículas históricas de años anteriores, que representan la memoria académica de la institución.</p>
+
+<!-- 2 -->
+<h2><span class="n">2. Sistemas de origen y destino</span></h2>
+<table class="t">
+    <tr><th style="width:22%">&nbsp;</th><th style="width:39%">Sistema de origen</th><th style="width:39%">Sistema de destino</th></tr>
+    <tr><td><b>Tecnología</b></td><td>Laravel (PHP) sobre MariaDB</td><td>Node.js sobre MySQL</td></tr>
+    <tr><td><b>Base de datos</b></td><td><code>san_jose_source</code> (temporal)</td><td><code>sistema_notas</code></td></tr>
+    <tr><td><b>Origen físico</b></td><td>Respaldo <code>SanJoseDeTarbes_backup.sql</code></td><td>Base de datos productiva</td></tr>
+    <tr><td><b>Modelo de datos</b></td><td>Nombres en español, una sola tabla de personas</td><td>Arquitectura por capas, entidades separadas</td></tr>
+</table>
+<div class="nota"><span class="lbl">Nota.</span> El respaldo del sistema anterior se importó primero en una base de datos temporal (<code>san_jose_source</code>). Esto permitió leer los datos originales sin alterarlos y transformarlos de forma controlada hacia la base definitiva.</div>
+
+<!-- 3 -->
+<h2><span class="n">3. Estrategia general de migración</span></h2>
+<p class="intro">La migración se realizó mediante scripts automatizados que ejecutan el proceso completo de manera reproducible. La estrategia siguió estos principios:</p>
+<ol>
+    <li><b>Importación aislada:</b> el respaldo SQL se cargó en una base temporal para no tocar los datos originales.</li>
+    <li><b>Transformación por entidad:</b> cada tabla del origen se leyó, se adaptó al nuevo modelo y se escribió en la base destino, manteniendo un mapa de equivalencias entre los identificadores antiguos y los nuevos.</li>
+    <li><b>Preservación de contraseñas:</b> las contraseñas cifradas se conservaron tal cual, ajustando únicamente el prefijo del cifrado (<code>$2y$</code> a <code>$2b$</code>), que corresponde al mismo algoritmo bcrypt. Así, cada usuario conserva su contraseña original.</li>
+    <li><b>Normalización de nombres:</b> los nombres de grados se tradujeron a la nueva nomenclatura (por ejemplo, <code>ONCE</code> pasó a <code>11°</code>).</li>
+</ol>
+
+<h3>Mapa de nomenclatura de grados</h3>
+<table class="t">
+    <tr><th>Origen</th><th>Destino</th><th>Origen</th><th>Destino</th></tr>
+    <tr><td>ONCE</td><td>11°</td><td>QUINTO</td><td>5°</td></tr>
+    <tr><td>DECIMO</td><td>10°</td><td>CUARTO</td><td>4°</td></tr>
+    <tr><td>NOVENO</td><td>9°</td><td>TERCERO</td><td>3°</td></tr>
+    <tr><td>OCTAVO</td><td>8°</td><td>SEGUNDO</td><td>2°</td></tr>
+    <tr><td>SEPTIMO</td><td>7°</td><td>PRIMERO</td><td>1°</td></tr>
+    <tr><td>SEXTO</td><td>6°</td><td>TRANSICION / JARDIN / etc.</td><td>Transición / Jardín / …</td></tr>
+</table>
+
+<!-- 4 -->
+<h2><span class="n">4. Detalle de la migración por entidad</span></h2>
+
+<h3>Año lectivo y períodos</h3>
+<p>Se creó el año lectivo <b>2025</b> como año activo y se definieron sus <b>cuatro períodos académicos</b>, cada uno con un peso del 25 % y con sus respectivas fechas de inicio y cierre.</p>
+
+<h3>Grados y grupos</h3>
+<p>Los cursos del sistema anterior (tabla <code>cursos</code>) se dividieron en dos entidades: <b>grados</b> (el nivel, como 6°) y <b>grupos</b> (la sección, como A o B). De este modo, un mismo grado puede tener varios grupos independientes.</p>
+
+<h3>Usuarios (administradores y docentes)</h3>
+<p>La información de usuarios provenía de tres tablas del origen: <code>personas</code> (datos personales), <code>usuarios</code> (rol) y <code>authss</code> (credenciales). Estas se combinaron en la tabla única <code>users</code>. El rol se asignó así: <em>administrador</em> y <em>secretaria</em> pasaron a <b>admin</b>, y el resto a <b>docente</b>. Los registros con rol <em>estudiante</em> no generaron usuario, ya que los estudiantes no acceden a la plataforma.</p>
+
+<h3>Directores de grado</h3>
+<p>La relación de directores (tabla <code>directores__cursos</code>) se trasladó de manera que cada <b>grupo</b> (A y B por separado) quedara con su director correcto, buscando la coincidencia por nombre entre el docente del origen y el usuario del destino.</p>
+
+<h3>Estudiantes</h3>
+<p>Los estudiantes (tabla <code>estudiantes</code>) se migraron con todos sus datos: nombre completo, código, tipo de documento, teléfonos, correos de los padres, dirección, acudiente, fechas de nacimiento e ingreso, y observaciones.</p>
+
+<h3>Matrículas del año en curso</h3>
+<p>Las matrículas del año activo se cargaron en la tabla <code>enrollments</code>, vinculando cada estudiante con su grupo y grado, y asignando a cada una un <b>número de folio</b> consecutivo.</p>
+
+<h3>Actividades y documentos</h3>
+<p>Se migraron también las <b>actividades extracurriculares</b>, la relación de <b>actividades por estudiante</b> y los <b>documentos pendientes</b> de cada estudiante.</p>
+
+<!-- 5 -->
+<h2><span class="n">5. Integración de matrículas históricas</span></h2>
+<p class="intro">Además de la migración del año en curso, se integró la <b>memoria histórica de matrículas</b> de años anteriores. Este fue uno de los aportes centrales de la integración.</p>
+<p>Las matrículas de los años <b>2011 a 2024</b> se cargaron en una tabla independiente, <code>enrollment_history</code>, separada de las matrículas activas para no mezclar la información del año en curso con la histórica. Cada registro conserva el código y nombre del estudiante, el grado y grupo cursado, el año académico y el valor de la matrícula.</p>
+<p>En la plataforma, esta información se consulta desde el módulo de matrículas, en la pestaña <b>Historial</b>: se muestra la lista de estudiantes y, al pulsar <b>"Ver historial"</b>, se despliega el recorrido año por año de cada estudiante.</p>
+
+<!-- 6 -->
+<h2><span class="n">6. Ajustes posteriores (post-migración)</span></h2>
+<p class="intro">Una vez migrados los datos, se realizaron varios ajustes de calidad para dejar la información consistente:</p>
+<ul>
+    <li><b>Normalización de nombres:</b> los nombres de estudiantes y docentes se ajustaron para que la primera letra de cada palabra quedara en mayúscula y el resto en minúscula.</li>
+    <li><b>Recálculo de folios:</b> los números de folio se reorganizaron por bloques de grados y ordenados por grupo (A antes que B), de modo que la numeración fuera coherente dentro de cada curso.</li>
+    <li><b>Directores por grupo:</b> se corrigió la asignación para que cada sección (A y B) tuviera su director independiente.</li>
+    <li><b>Verificación de períodos y año activo:</b> se confirmó que el año lectivo y sus períodos quedaran correctamente abiertos y activos.</li>
+</ul>
+
+<!-- 7 -->
+<h2><span class="n">7. Resultados finales</span></h2>
+<p class="intro">La siguiente tabla resume el volumen de datos migrados e integrados, verificado directamente en la base de datos.</p>
+<table class="t">
+    <tr><th style="width:70%">Entidad</th><th style="width:30%">Cantidad</th></tr>
+    <tr><td>Años lectivos</td><td class="num-cell">1</td></tr>
+    <tr><td>Períodos académicos</td><td class="num-cell">4</td></tr>
+    <tr><td>Grados</td><td class="num-cell">15</td></tr>
+    <tr><td>Grupos</td><td class="num-cell">26</td></tr>
+    <tr><td>Usuarios (administradores)</td><td class="num-cell">4</td></tr>
+    <tr><td>Usuarios (docentes)</td><td class="num-cell">39</td></tr>
+    <tr><td>Estudiantes</td><td class="num-cell">519</td></tr>
+    <tr><td>Matrículas del año activo (2025)</td><td class="num-cell">481</td></tr>
+    <tr><td>Matrículas históricas (2011 – 2024)</td><td class="num-cell">2.128</td></tr>
+    <tr><td>Años históricos integrados</td><td class="num-cell">14</td></tr>
+    <tr><td>Actividades extracurriculares</td><td class="num-cell">7</td></tr>
+    <tr><td>Actividades de estudiantes</td><td class="num-cell">4</td></tr>
+</table>
+
+<div class="nota"><span class="lbl">Conclusión.</span> La migración trasladó de forma íntegra la información operativa del colegio al nuevo sistema, y la integración de más de dos mil matrículas históricas de catorce años permite consultar el recorrido académico completo de cada estudiante desde la nueva plataforma.</div>
+
+<div class="footer-final">
+    Colegio San José de Tarbes &nbsp;·&nbsp; Documentación de Migración e Integración &nbsp;·&nbsp; Sistema de Gestión de Notas
+</div>
+
+</body>
+</html>

@@ -74,17 +74,17 @@ exports.list = async (req, res) => {
 exports.listByGrade = async (req, res) => {
     try {
         const pool = require('../../infrastructure/database/mysql');
-        const { gradeId } = req.params;
+        const { gradeId: groupId } = req.params;
         const { academicYearId } = req.query;
 
-        // Verify the requesting docente is head teacher of this grade
+        // Verify the requesting docente is head teacher of this group (section)
         if (req.user.role === 'docente') {
             const [rows] = await pool.query(
-                `SELECT id FROM grades WHERE id = ? AND head_teacher_id = ? AND deleted_at IS NULL`,
-                [gradeId, req.user.id]
+                `SELECT id FROM \`groups\` WHERE id = ? AND head_teacher_id = ? AND deleted_at IS NULL`,
+                [groupId, req.user.id]
             );
             if (rows.length === 0) {
-                return res.status(403).json({ message: 'No eres director de este grado' });
+                return res.status(403).json({ message: 'No eres director de este grupo' });
             }
         }
 
@@ -92,15 +92,9 @@ exports.listByGrade = async (req, res) => {
             ? await repo.findByAcademicYear(parseInt(academicYearId))
             : await list.execute();
 
-        // Filter to this grade's groups + electives, no teacher filter
-        const [groups] = await pool.query(
-            `SELECT id FROM \`groups\` WHERE grade_id = ? AND deleted_at IS NULL`,
-            [gradeId]
-        );
-        const groupIdSet = new Set(groups.map(g => g.id));
-
+        // Filter to this group's assignments + electives, no teacher filter
         assignments = assignments.filter(a =>
-            (a.is_elective === 1) || groupIdSet.has(a.group_id)
+            (a.is_elective === 1) || a.group_id === parseInt(groupId)
         );
 
         res.json(assignments);

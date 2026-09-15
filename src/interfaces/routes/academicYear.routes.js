@@ -11,6 +11,7 @@ router.get('/:id', authenticate, academicYearController.getById);
 router.post('/', authenticate, authorize(['admin']), academicYearController.create);
 router.put('/:id', authenticate, authorize(['admin']), academicYearController.update);
 router.delete('/:id', authenticate, authorize(['admin']), academicYearController.delete);
+router.post('/:id/clone-structure', authenticate, authorize(['admin']), academicYearController.cloneStructure);
 router.post('/:id/close', authenticate, authorize(['admin']), academicYearController.closeYear);
 router.post('/:id/reopen', authenticate, authorize(['admin']), academicYearController.reopenYear);
 

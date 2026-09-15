@@ -56,7 +56,7 @@ const ResetPassword = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8 text-center">
-          <div className="text-red-600 mb-4">❌ {error}</div>
+          <div className="text-red-600 mb-4">{error}</div>
           <Link to="/login" className="text-blue-600 hover:text-blue-800">
             Volver al login
           </Link>

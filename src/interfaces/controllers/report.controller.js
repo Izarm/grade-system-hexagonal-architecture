@@ -1,8 +1,8 @@
-const pool = require('../../infrastructure/database/mysql');
+﻿const pool = require('../../infrastructure/database/mysql');
 const StudentRepository = require('../../infrastructure/repositories/StudentRepository');
 const GenerateStudentReportCard = require('../../application/use-cases/reports/GenerateStudentReportCard');
-const GenerateAlphabeticalList = require('../../application/use-cases/reports/GenerateAlphabeticalList');
-const GenerateExcelList = require('../../application/use-cases/reports/GenerateExcelList');
+const GenerateStudentListing = require('../../application/use-cases/reports/GenerateStudentListing');
+const GenerateStudentDataSheet = require('../../application/use-cases/reports/GenerateStudentDataSheet');
 const GenerateBulkReportCards = require('../../application/use-cases/reports/GenerateBulkReportCards');
 const GeneratePeriodReportWord = require('../../application/use-cases/reports/GeneratePeriodReportWord');
 const GenerateFinalReportWord = require('../../application/use-cases/reports/GenerateFinalReportWord');
@@ -14,12 +14,15 @@ const GenerateGradeReportElectivesExcel = require('../../application/use-cases/r
 const GenerateGradeReportWord = require('../../application/use-cases/reports/GenerateGradeReportWord');
 const GenerateGradeReportAttitudinalWord = require('../../application/use-cases/reports/GenerateGradeReportAttitudinalWord');
 const GenerateGradeReportElectivesWord = require('../../application/use-cases/reports/GenerateGradeReportElectivesWord');
+const GenerateBulkReportHTML = require('../../application/use-cases/reports/GenerateBulkReportHTML');
+const GenerateGradeBookWord = require('../../application/use-cases/reports/GenerateGradeBookWord');
+const GenerateEnrollmentCardWord = require('../../application/use-cases/reports/GenerateEnrollmentCardWord');
 const archiver = require('archiver');
 
 const studentRepo = new StudentRepository();
 const generateReportCard = new GenerateStudentReportCard(studentRepo);
-const generatePdfList = new GenerateAlphabeticalList(studentRepo);
-const generateExcelList = new GenerateExcelList(studentRepo);
+const generateStudentListing = new GenerateStudentListing(pool);
+const generateStudentDataSheet = new GenerateStudentDataSheet(pool);
 const bulkReport = new GenerateBulkReportCards(studentRepo);
 
 // ==================== FUNCIONES AUXILIARES ====================
@@ -89,7 +92,6 @@ exports.getFullStructure = async (req, res) => {
             assignments: assignments
         });
     } catch (error) {
-        console.error('Error en getFullStructure:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -99,14 +101,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
         const teacherId = req.user.id;
         const userRole = req.user.role;
         const { academicYearId, subjectAssignmentId, periodId, gradeId } = req.query;
-        
-        console.log('=== getTeacherAssignmentsWithGrades ===');
-        console.log('teacherId:', teacherId);
-        console.log('userRole:', userRole);
-        console.log('academicYearId:', academicYearId);
-        console.log('subjectAssignmentId:', subjectAssignmentId);
-        console.log('periodId:', periodId);
-        console.log('gradeId:', gradeId);
         
         let query = `
             SELECT sa.id, sa.group_id, sa.subject_id, sa.academic_year_id, sa.is_elective,
@@ -135,7 +129,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
         query += ` ORDER BY ay.name DESC, g.name, grp.name, s.name`;
         
         const [assignments] = await pool.query(query, params);
-        console.log('Asignaciones encontradas:', assignments.length);
         
         let students = null;
         let periodStatus = null;
@@ -146,41 +139,39 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
                 [periodId]
             );
             periodStatus = period[0]?.status || null;
-            console.log('Period status:', periodStatus);
             
             const [assignment] = await pool.query(
                 `SELECT group_id, academic_year_id, is_elective FROM subject_assignments WHERE id = ? AND deleted_at IS NULL`,
                 [subjectAssignmentId]
             );
             
-            console.log('Assignment query result:', assignment);
-            
             if (assignment.length > 0) {
                 const isElectiveAssignment = assignment[0].is_elective === 1;
-                console.log('Es asignación electiva:', isElectiveAssignment);
                 
                 if (isElectiveAssignment) {
                     let studentsQuery = `
-                        SELECT s.id, s.full_name, s.student_code, 
+                        SELECT s.id, s.full_name, s.student_code,
                                e.id as enrollment_id, e.folio_number,
-                               g.name as grade_name
+                               g.name as grade_name, grp.name as group_name
                         FROM enrollments e
                         JOIN students s ON e.student_id = s.id
                         JOIN \`groups\` grp ON e.group_id = grp.id
                         JOIN grades g ON grp.grade_id = g.id
                         WHERE e.academic_year_id = ? AND e.deleted_at IS NULL
+                          AND g.takes_grades = 1
                     `;
                     const studentsParams = [assignment[0].academic_year_id];
-                    
+
                     if (gradeId && gradeId !== '') {
                         studentsQuery += ` AND g.id = ?`;
                         studentsParams.push(parseInt(gradeId));
                     }
-                    
-                    studentsQuery += ` ORDER BY g.name, e.folio_number ASC, s.full_name ASC`;
-                    
+
+                    studentsQuery += ` ORDER BY CAST(g.name AS UNSIGNED) ASC,
+                        FIELD(grp.name,'A','B','C','D','E','F','G','H','I','J') ASC,
+                        s.full_name ASC`;
+
                     [students] = await pool.query(studentsQuery, studentsParams);
-                    console.log('Estudiantes electivos encontrados:', students ? students.length : 0);
                 } else {
                     [students] = await pool.query(
                         `SELECT s.id, s.full_name, s.student_code, e.id as enrollment_id, e.folio_number,
@@ -193,7 +184,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
                          ORDER BY e.folio_number ASC, s.full_name ASC`,
                         [assignment[0].group_id, assignment[0].academic_year_id]
                     );
-                    console.log('Estudiantes regulares encontrados:', students ? students.length : 0);
                 }
                 
                 if (students && students.length > 0) {
@@ -205,7 +195,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
                         [subjectAssignmentId, periodId]
                     );
                     
-                    console.log('Notas encontradas:', grades.length);
                     
                     const gradesMap = {};
                     grades.forEach(g => {
@@ -224,8 +213,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
                         grade: gradesMap[s.id] || null
                     }));
                 }
-            } else {
-                console.log('No se encontró la asignación con id:', subjectAssignmentId);
             }
         }
         
@@ -253,7 +240,6 @@ exports.getTeacherAssignmentsWithGrades = async (req, res) => {
             grades: allGrades
         });
     } catch (error) {
-        console.error('Error en getTeacherAssignmentsWithGrades:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -265,7 +251,6 @@ exports.getStudentsList = async (req, res) => {
         );
         res.json(rows);
     } catch (error) {
-        console.error('Error en getStudentsList:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -283,32 +268,40 @@ exports.generateStudentReportCard = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=boletin_${studentId}_${academicYearId}.pdf`);
         res.send(pdfBuffer);
     } catch (error) {
-        console.error('Error en generateStudentReportCard:', error);
         res.status(400).json({ message: error.message });
     }
 };
 
 exports.generateAlphabeticalList = async (req, res) => {
     try {
-        const { academicYearId, groupId, format = 'pdf' } = req.query;
-        if (!academicYearId) {
-            return res.status(400).json({ message: 'Se requiere academicYearId' });
+        const { academicYearId, gradeId, groupId, format } = req.query;
+
+        const resultado = await generateStudentListing.execute({
+            academicYearId: academicYearId ? parseInt(academicYearId) : null,
+            gradeId: gradeId ? parseInt(gradeId) : null,
+            groupId: groupId ? parseInt(groupId) : null,
+            formato: format === 'excel' ? 'excel' : (format === 'html' ? 'html' : 'pdf')
+        });
+
+        // Vista previa: se devuelve la página para verla dentro de la aplicación
+        if (resultado.esHtml) {
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            return res.send(resultado.html);
         }
-        
-        let buffer;
-        if (format === 'excel') {
-            buffer = await generateExcelList.execute(parseInt(academicYearId), groupId ? parseInt(groupId) : null);
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename=listado_estudiantes_${academicYearId}.xlsx`);
-        } else {
-            buffer = await generatePdfList.execute(parseInt(academicYearId), groupId ? parseInt(groupId) : null, 'pdf');
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=listado_estudiantes_${academicYearId}.pdf`);
-        }
+
+        const { buffer, nombreArchivo } = resultado;
+
+        res.setHeader('Content-Type', format === 'excel'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateAlphabeticalList:', error);
-        res.status(400).json({ message: error.message });
+        if (error?.isAppError) {
+            return res.status(error.status).json({ message: error.message });
+        }
+        console.error('Error generando el listado:', error);
+        res.status(500).json({ message: 'No se pudo generar el listado' });
     }
 };
 
@@ -332,18 +325,59 @@ exports.generateBulkReportCards = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=boletines_${academicYearId}${gradeId ? '_grado_'+gradeId : ''}.zip`);
         res.send(zipBuffer);
     } catch (error) {
-        console.error('Error en generateBulkReportCards:', error);
         res.status(400).json({ message: error.message });
     }
 };
 
 // ==================== REPORTES WORD ====================
 
+// Tarjeta Acumulativa de Matrícula (historial completo de un estudiante)
+exports.generateEnrollmentCardWord = async (req, res) => {
+    try {
+        const { studentCode } = req.query;
+        if (!studentCode) {
+            return res.status(400).json({ message: 'Se requiere studentCode' });
+        }
+
+        const generator = new GenerateEnrollmentCardWord(pool);
+        const buffer = await generator.execute(String(studentCode));
+
+        const safe = String(studentCode).replace(/[^\w-]/g, '');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename=Tarjeta_Matricula_${safe}.docx`);
+        res.send(buffer);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+exports.generateGradeBookWord = async (req, res) => {
+    try {
+        const { gradeId, groupId, academicYearId, resolution, resolutionDate } = req.query;
+        if (!gradeId || !academicYearId) {
+            return res.status(400).json({ message: 'Se requieren gradeId y academicYearId' });
+        }
+
+        const generator = new GenerateGradeBookWord(pool);
+        const buffer = await generator.execute(
+            parseInt(gradeId), parseInt(academicYearId),
+            resolution || '', resolutionDate || '',
+            groupId ? parseInt(groupId) : null
+        );
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename=Libro_Calificaciones_Grado_${gradeId}${groupId ? '_G' + groupId : ''}.docx`);
+        res.send(buffer);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 exports.generatePeriodReportWord = async (req, res) => {
     try {
         const { studentId, academicYearId, periodId, studentName, periodName } = req.query;
         if (!studentId || !academicYearId || !periodId) {
-            return res.status(400).json({ message: 'Faltan parámetros' });
+            return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         }
         
         const finalStudentName = studentName || `Estudiante_${studentId}`;
@@ -357,7 +391,6 @@ exports.generatePeriodReportWord = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generatePeriodReportWord:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -366,7 +399,7 @@ exports.generateFinalReportWord = async (req, res) => {
     try {
         const { studentId, academicYearId, studentName } = req.query;
         if (!studentId || !academicYearId) {
-            return res.status(400).json({ message: 'Faltan parámetros' });
+            return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         }
         
         const finalStudentName = studentName || `Estudiante_${studentId}`;
@@ -379,19 +412,18 @@ exports.generateFinalReportWord = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateFinalReportWord:', error);
         res.status(500).json({ message: error.message });
     }
 };
 
 exports.generateBulkWordReports = async (req, res) => {
     try {
-        const { academicYearId, gradeId, type = 'period', periodId } = req.query;
-        
+        const { academicYearId, gradeId, groupId, type = 'period', periodId } = req.query;
+
         if (!academicYearId) {
             return res.status(400).json({ message: 'Faltan academicYearId' });
         }
-        
+
         const isMassive = type === 'massive_period' || type === 'massive_final';
         const archive = archiver('zip', { zlib: { level: 9 } });
         let fileName = '';
@@ -436,30 +468,47 @@ exports.generateBulkWordReports = async (req, res) => {
             
             const [gradeRows] = await pool.query(`SELECT id, name FROM grades WHERE id = ?`, [gradeId]);
             const gradeName = gradeRows[0]?.name || 'Grado';
+
+            // Nombre de la sección (cuando se solicita una sola)
+            let sectionName = '';
+            if (groupId) {
+                const [grpRows] = await pool.query(`SELECT name FROM \`groups\` WHERE id = ?`, [groupId]);
+                sectionName = grpRows[0]?.name ? ` ${grpRows[0].name}` : '';
+            }
             const tipoTexto = type === 'period' ? 'Periodo' : 'Final';
             let periodoTexto = '';
-            
+
             if (type === 'period' && periodId) {
                 const [periodRows] = await pool.query(`SELECT \`order\` FROM periods WHERE id = ?`, [periodId]);
                 if (periodRows.length > 0) periodoTexto = `_Periodo_${periodRows[0].order}`;
             }
-            
-            fileName = `Boletines_Grado_${await getCleanGradeName(gradeName)}_${tipoTexto}${periodoTexto}.zip`;
-            
-            const [students] = await pool.query(
-                `SELECT DISTINCT s.id, s.full_name
-                 FROM students s
-                 JOIN enrollments e ON s.id = e.student_id
-                 JOIN \`groups\` grp ON e.group_id = grp.id
-                 WHERE grp.grade_id = ? AND e.academic_year_id = ? AND e.deleted_at IS NULL
-                 ORDER BY s.full_name ASC`,
-                [gradeId, academicYearId]
-            );
-            
+
+            fileName = `Boletines_Grado_${await getCleanGradeName(gradeName + sectionName)}_${tipoTexto}${periodoTexto}.zip`;
+
+            // Si se indica una sección (grupo), solo esos estudiantes; si no, todo el grado.
+            const [students] = groupId
+                ? await pool.query(
+                    `SELECT DISTINCT s.id, s.full_name
+                     FROM students s
+                     JOIN enrollments e ON s.id = e.student_id
+                     WHERE e.group_id = ? AND e.academic_year_id = ? AND e.deleted_at IS NULL
+                     ORDER BY s.full_name ASC`,
+                    [groupId, academicYearId]
+                  )
+                : await pool.query(
+                    `SELECT DISTINCT s.id, s.full_name
+                     FROM students s
+                     JOIN enrollments e ON s.id = e.student_id
+                     JOIN \`groups\` grp ON e.group_id = grp.id
+                     WHERE grp.grade_id = ? AND e.academic_year_id = ? AND e.deleted_at IS NULL
+                     ORDER BY s.full_name ASC`,
+                    [gradeId, academicYearId]
+                  );
+
             if (students.length > 0) {
                 gradosConEstudiantes.push({
                     id: gradeId,
-                    nombre: gradeName,
+                    nombre: gradeName + sectionName,
                     estudiantes: students
                 });
             }
@@ -497,7 +546,28 @@ exports.generateBulkWordReports = async (req, res) => {
         }
         await archive.finalize();
     } catch (error) {
-        console.error('Error en generateBulkWordReports:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ==================== BOLETINES PARA IMPRIMIR (HTML auto-imprimible) ====================
+// Devuelve un único documento HTML con todos los boletines (por grado o masivo),
+// cada uno en su página, que el navegador abre e imprime automáticamente.
+exports.generateBulkPrintHTML = async (req, res) => {
+    try {
+        const { academicYearId, gradeId, groupId, type = 'period', periodId } = req.query;
+        if (!academicYearId) {
+            return res.status(400).json({ message: 'Falta academicYearId' });
+        }
+        const isMassive = type === 'massive_period' || type === 'massive_final';
+        if (!isMassive && !gradeId) {
+            return res.status(400).json({ message: 'Falta gradeId' });
+        }
+        const generator = new GenerateBulkReportHTML(pool);
+        const html = await generator.execute({ academicYearId, gradeId, groupId, type, periodId });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
@@ -508,7 +578,7 @@ exports.generatePeriodReportExcel = async (req, res) => {
     try {
         const { studentId, academicYearId, periodId } = req.query;
         if (!studentId || !academicYearId || !periodId) {
-            return res.status(400).json({ message: 'Faltan parámetros' });
+            return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         }
         
         const generator = new GeneratePeriodReportExcel(pool);
@@ -519,7 +589,6 @@ exports.generatePeriodReportExcel = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generatePeriodReportExcel:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -528,7 +597,7 @@ exports.generateFinalReportExcel = async (req, res) => {
     try {
         const { studentId, academicYearId } = req.query;
         if (!studentId || !academicYearId) {
-            return res.status(400).json({ message: 'Faltan parámetros' });
+            return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         }
         
         const generator = new GenerateFinalReportExcel(pool);
@@ -539,7 +608,6 @@ exports.generateFinalReportExcel = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateFinalReportExcel:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -564,7 +632,6 @@ exports.generateGradeReportExcel = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateGradeReportExcel:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -589,7 +656,6 @@ exports.generateGradeReportAttitudinalExcel = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateGradeReportAttitudinalExcel:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -614,7 +680,6 @@ exports.generateGradeReportElectivesExcel = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error en generateGradeReportElectivesExcel:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -679,54 +744,76 @@ exports.generateBulkExcelReports = async (req, res) => {
         
         await archive.finalize();
     } catch (error) {
-        console.error('Error en generateBulkExcelReports:', error);
         res.status(500).json({ message: error.message });
     }
 };
 exports.generateGradeReportWord = async (req, res) => {
     try {
-        const { academicYearId, periodId, gradeId } = req.query;
-        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parámetros' });
+        const { academicYearId, periodId, gradeId, groupId } = req.query;
+        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         const generator = new GenerateGradeReportWord(pool);
-        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId) });
+        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId), groupId: groupId ? parseInt(groupId) : null });
         const gradeName = await getGradeName(gradeId);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         res.setHeader('Content-Disposition', `attachment; filename="Notas_Cognitivas_${gradeName}_P${periodId}.docx"`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error generando Word cognitivo:', error);
         res.status(500).json({ message: error.message });
     }
 };
 
 exports.generateGradeReportAttitudinalWord = async (req, res) => {
     try {
-        const { academicYearId, periodId, gradeId } = req.query;
-        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parámetros' });
+        const { academicYearId, periodId, gradeId, groupId } = req.query;
+        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         const generator = new GenerateGradeReportAttitudinalWord(pool);
-        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId) });
+        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId), groupId: groupId ? parseInt(groupId) : null });
         const gradeName = await getGradeName(gradeId);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         res.setHeader('Content-Disposition', `attachment; filename="Notas_Actitudinales_${gradeName}_P${periodId}.docx"`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error generando Word actitudinal:', error);
         res.status(500).json({ message: error.message });
     }
 };
 
 exports.generateGradeReportElectivesWord = async (req, res) => {
     try {
-        const { academicYearId, periodId, gradeId } = req.query;
-        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parámetros' });
+        const { academicYearId, periodId, gradeId, groupId } = req.query;
+        if (!academicYearId || !periodId || !gradeId) return res.status(400).json({ message: 'Faltan parÃ¡metros' });
         const generator = new GenerateGradeReportElectivesWord(pool);
-        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId) });
+        const buffer = await generator.execute({ academicYearId: parseInt(academicYearId), periodId: parseInt(periodId), gradeId: parseInt(gradeId), groupId: groupId ? parseInt(groupId) : null });
         const gradeName = await getGradeName(gradeId);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         res.setHeader('Content-Disposition', `attachment; filename="Notas_Electivas_${gradeName}_P${periodId}.docx"`);
         res.send(buffer);
     } catch (error) {
-        console.error('Error generando Word electivas:', error);
         res.status(500).json({ message: error.message });
+    }
+};
+
+// Listado con TODOS los datos de los estudiantes (Word o Excel)
+exports.generateStudentDataSheet = async (req, res) => {
+    try {
+        const { academicYearId, gradeId, groupId, format } = req.query;
+
+        const { buffer, nombreArchivo } = await generateStudentDataSheet.execute({
+            academicYearId: academicYearId ? parseInt(academicYearId) : null,
+            gradeId: gradeId ? parseInt(gradeId) : null,
+            groupId: groupId ? parseInt(groupId) : null,
+            formato: format === 'word' ? 'word' : 'excel'
+        });
+
+        res.setHeader('Content-Type', format === 'word'
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+        res.send(buffer);
+    } catch (error) {
+        if (error?.isAppError) {
+            return res.status(error.status).json({ message: error.message });
+        }
+        console.error('Error generando el listado de datos:', error);
+        res.status(500).json({ message: 'No se pudo generar el listado de datos' });
     }
 };

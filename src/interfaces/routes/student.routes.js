@@ -5,6 +5,7 @@ const studentController = require('../controllers/student.controller');
 
 // Las rutas de lectura requieren autenticación (cualquier usuario logueado puede ver estudiantes)
 router.get('/', authenticate, studentController.list);
+router.get('/generate-code', authenticate, studentController.generateCode);
 router.get('/:id', authenticate, studentController.getById);
 
 // Las rutas de escritura requieren autenticación y rol de admin
